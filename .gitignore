@@ -1,0 +1,19 @@
+# Common local/editor temp files
+*.tmp
+*.temp
+*.log
+*.bak
+*.orig
+*~
+
+# Text files commonly used for notes/local docs
+*.txt
+
+# OS/editor metadata
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.iml
