@@ -98,6 +98,7 @@ everything by hand? Be our guest — every script works standalone.
 | Android Image Kitchen | Boot image repack (aik mode) | ⚪ optional |
 | magiskboot | Boot image repack (magisk mode) | ⚪ optional |
 | LineageOS dtbTool | DTB append for non-DTB kernels | ⚪ only if you need `boot-dt.img` |
+| A NerdFont | Powerline progress line + decorative glyphs | ⚪ optional |
 
 **Note on `magiskboot`:** `pack-it` needs *either* AIK or `magiskboot` —
 not both. AIK is the default and offers a guided install via `config-it.sh`.
