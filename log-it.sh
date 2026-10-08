@@ -129,6 +129,7 @@ fi
 
 # shellcheck disable=SC2034  # read by run_tool in common.sh
 VERBOSE=$verbose
+# shellcheck disable=SC2034  # read by run_tool in common.sh
 [ "${silent}" -eq 1 ] && VERBOSE=0
 
 # --- Silent handling for ADB ----------------------------
