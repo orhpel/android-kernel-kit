@@ -285,6 +285,7 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
+# shellcheck disable=SC2034  # read by run_tool in common.sh
 VERBOSE=$verbose
 
 # _pinfo <text...>
