@@ -1150,15 +1150,32 @@ config_list_vars() {
 }
 
 # config_list_groups
-#   Prints all groups that have at least one visible variable.
+#   Prints all groups that have at least one visible variable, in the
+#   canonical order declared by KIT_CONFIG_GROUP_ORDER. Any group not
+#   listed there is appended afterwards.
 config_list_groups() {
-  local var group seen=""
+  local var group
+  local -A present=()
+
+  # Collect groups that have at least one visible var.
   for var in "${!_CFG_TYPE[@]}"; do
     [ "${_CFG_HIDDEN[$var]}" = "1" ] && continue
     group="${_CFG_GROUP[$var]}"
     [ -z "$group" ] && continue
-    case " $seen " in *" $group "*) continue ;; esac
-    seen="$seen $group"
+    present["$group"]=1
+  done
+
+  # Emit in canonical order first.
+  if declare -p KIT_CONFIG_GROUP_ORDER >/dev/null 2>&1; then
+    for group in "${KIT_CONFIG_GROUP_ORDER[@]}"; do
+      [ -n "${present[$group]+set}" ] || continue
+      printf '%s\n' "$group"
+      unset "present[$group]"
+    done
+  fi
+
+  # Then any remaining groups (not in the list) in arbitrary order.
+  for group in "${!present[@]}"; do
     printf '%s\n' "$group"
   done
 }

@@ -169,3 +169,18 @@ config_declare KIT_BUILD_STATE_REF_LINES int --group State --scope project --def
 config_declare KIT_COMMON_STATE_NERDFONT_ASKED bool \
   --group State --scope global --default 0 --hidden \
   --desc "Whether config-it has already asked about NerdFont support"
+
+# Canonical menu order for config-it. Groups not listed here appear
+# afterwards in arbitrary order.
+KIT_CONFIG_GROUP_ORDER=(
+  General
+  Paths
+  ADB
+  Clean
+  Build
+  Pack
+  Flash
+  Log
+  Stream
+  Menu
+)
