@@ -1,0 +1,140 @@
+#------------------------------------------------------------------------------
+# Various Android OEM non-standard boot image related magic entries
+# Based on osm0sis @ xda-developers
+#
+# Requires file(1) >= 5.40.
+#
+# NOTE: top-level `search` rules do not work reliably in file(1), so
+# rules that need to search use the `0 string x` + `>0 search ...`
+# workaround. This produces benign "Duplicate magic entry ''" warnings
+# on some file(1) versions; they can be silenced by redirecting stderr.
+#
+# Every rule that indicates a boot image carries
+# `!:mime application/x-androidkit` so callers can distinguish
+# "our magic matched" from "file(1) fell back to built-in rules".
+#------------------------------------------------------------------------------
+
+# ASUS Blob Signature
+0		string		-SIGNED-BY-SIGNBLOB-	BLOB signing
+!:mime application/x-androidkit
+
+# Barnes & Noble Nook Signature
+64		string		Red\x20Loader						NOOK signing (red loader)
+!:mime application/x-androidkit
+64		string		Green\x20Loader						NOOK signing (green loader)
+!:mime application/x-androidkit
+64		string		Green\x20Recovery					NOOK signing (green recovery)
+!:mime application/x-androidkit
+64		string		eMMC\x20boot.img+secondloader		NOOK signing (emmc boot)
+!:mime application/x-androidkit
+64		string		eMMC\x20recovery.img+secondloader	NOOK signing (emmc recovery)
+!:mime application/x-androidkit
+48		string		BauwksBoot							NOOKTAB signing (bauwks)
+!:mime application/x-androidkit
+
+# Google ChromeOS Signature
+0		string		CHROMEOS			CHROMEOS signing
+!:mime application/x-androidkit
+
+# Samsung/Spreadtrum DHTB Signature
+0		string		DHTB\x01\x00\x00	DHTB signing
+!:mime application/x-androidkit
+
+# Sony SIN Packaging/Signature
+0		string		\x01\x00\x00\x00	SINv1 signing
+!:mime application/x-androidkit
+0		string		\x02\x00\x00\x00	SINv2 signing
+!:mime application/x-androidkit
+0		string		\x03SIN				SINv3 signing
+!:mime application/x-androidkit
+
+# Google Pixel/Nexus/AOSP Standard
+0		string		x
+>0		search		ANDROID!			AOSP bootimg
+!:mime application/x-androidkit
+>36		string		\x00\x00\x00\x02	\b, PXA variant (020)
+>36		string		\x00\x00\x80\x02	\b, PXA variant (028)
+>36		string		\x00\x00\x00\x03	\b, PXA variant (030)
+>96		search		microloader
+>>1024	string		ANDROID!			\b, AMONET header
+>1024	string		LOKI				\b, LOKI header
+>>1028	string		\x00				\b (boot)
+>>1028	string		\x01				\b (recovery)
+>2048	search		\x88\x16\x88\x58	\b, MTK headers
+!:strength * 3
+
+# Google Pixel/AOSP Vendor Standard
+0		string		x
+>0		search		VNDRBOOT			AOSP_VNDR bootimg
+!:mime application/x-androidkit
+!:strength * 3
+
+# DENX U-Boot
+0		string		\x27\x05\x19\x56	U-Boot bootimg
+!:mime application/x-androidkit
+
+# Intel OSIP
+1000	search		\xFC\xFA\xBC\x00	OSIP bootimg (headerless)
+!:mime application/x-androidkit
+!:strength / 15
+0		string		$OS$\x00\x00\x01	OSIP bootimg
+!:mime application/x-androidkit
+>52		string		\x00\x00\x00\x00	\b, boot (signed)
+>52		string		\x01\x00\x00\x00	\b, boot (unsigned)
+>52		string		\x0C\x00\x00\x00	\b, recovery (signed)
+>52		string		\x0D\x00\x00\x00	\b, recovery (unsigned)
+
+# Rockchip KRNL
+0		string		KRNL				KRNL bootimg
+!:mime application/x-androidkit
+
+# Sony ELF
+0		string		\x7FELF				ELF
+>5		string		\x01\x01\x61		bootimg
+!:mime application/x-androidkit
+>18		string		\x28				(ARM
+>18		string		\x03				(x86_
+>18		string		\x08				(MIPS
+>4		string		\x01				\b)
+>4		string		\x02				\b64)
+>0		search		\x88\x16\x88\x58	\b, MTK headers
+
+# MediaTek MTK
+0		string		x
+>0		search		\x88\x16\x88\x58	MTK header
+!:mime application/x-androidkit
+>0		search		KERNEL				\b, kernel type
+>0		search		ROOTFS				\b, rootfs type
+>0		search		RECOVERY			\b, recovery type
+!:strength / 20
+
+# Qualcomm Device Tree
+0		string		QCDT				QCDT header
+!:mime application/x-androidkit
+!:strength / 20
+
+# Google Android Verified Boot 1.0 Signature
+0		string		x
+>0		search		\x02\x01\x01\x30\x82	AVBv1 signing footer
+!:mime application/x-androidkit
+>0		search		/boot					\b, boot type
+>0		search		/recovery				\b, recovery type
+!:strength / 20
+
+# Google Android Verified Boot 2.0 Signature
+0		string		x
+>0		search		AVBf					AVBv2 signing footer
+!:mime application/x-androidkit
+!:strength / 20
+
+# LG Bump
+0		string		x
+>0		search		\x41\xA9\xE4\x67\x74\x4D\x1D\x1B\xA4\x29\xF2\xEC\xEA\x65\x52\x79	Bump footer
+!:mime application/x-androidkit
+!:strength / 20
+
+# Samsung SEAndroid
+0		string		x
+>0		search		SEANDROIDENFORCE	SEAndroid footer
+!:mime application/x-androidkit
+!:strength / 20
