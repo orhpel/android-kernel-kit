@@ -29,13 +29,13 @@ went wrong when it doesn't.
 
 | Script | What it does |
 |---|---|
+| `config-it.sh`   | Interactive config editor + guided tool setup |
+| `clean-it.sh`    | `make clean && make mrproper`, with `.config` rescue |
 | `build-it.sh`    | Build the kernel, archive the result, optional repack |
 | `pack-it.sh`     | Repack boot.img via AIK or magiskboot |
 | `flash-it.sh`    | Push + flash over adb, with sanity checks |
-| `clean-it.sh`    | `make clean && make mrproper`, with `.config` rescue |
 | `log-it.sh`      | Pull kernel and system logs from the device |
 | `debug-it.sh`    | Full debug bundle (getprop, tombstones, build.prop, +30 more) |
-| `config-it.sh`   | Interactive config editor + guided tool setup |
 | `toolchain.sh`   | Pick a toolchain per project |
 | `magictest.sh`   | Magic-byte validator (used internally by other scripts) |
 
@@ -92,7 +92,7 @@ A working x86_64 build is available in
 — download the binary from that commit and put it in your `PATH`.
 
 *The linked commit provides a recompiled x86_64 binary that works on
-Ubuntu 22.04 and similar; the official `magiskboot` from Magisk releases
+cachyos 7.2.9, Ubuntu 22.04 and similar; the official `magiskboot` from Magisk releases
 does not run on all Linux setups.*
 
 ## Quickstart
@@ -103,10 +103,6 @@ git clone https://github.com/<you>/android-kernel-kit ~/Projects/android-kernel-
 
 # Make the scripts callable (optional but recommended)
 export PATH="$HOME/Projects/android-kernel-kit:$PATH"
-
-# In your kernel project
-cd ~/Projects/kernel_foo
-touch .project                       # marks the project root
 
 # First-time config — kit-wide defaults
 cd ~/Projects/android-kernel-kit
@@ -183,6 +179,8 @@ Precedence (low → high): schema default → global `.kit` → project
 `.kit` → environment. Overrides that match the inherited value are
 automatically pruned, so project files stay minimal.
 
+*For kernel trees that don't have both Makefile and AndroidKernel.mk in the root (AOSP-style trees, for instance), drop an empty .project file in the project root so the kit can find it. LineageOS-style trees are detected automatically.*
+
 Edit with the menu:
 
 ~~~bash
@@ -219,11 +217,11 @@ that:
 
 **Release candidate.** The core workflow (build → repack → flash → log)
 is tested and stable. Actively developed against LineageOS 17.1 on
-Exynos 9820; other devices and kernels are untested but should work
+a Samsung T560/T561; other devices and kernels are untested but should work
 with the right configuration.
 
 Rough edges may still exist. Bug reports and PRs welcome — especially
-from people running the kit on hardware that isn't Exynos 9820.
+from people running the kit on hardware that isn't a Samsung T560/T561.
 
 ## Contributing
 
