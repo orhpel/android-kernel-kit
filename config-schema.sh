@@ -172,6 +172,7 @@ config_declare KIT_COMMON_STATE_NERDFONT_ASKED bool \
 
 # Canonical menu order for config-it. Groups not listed here appear
 # afterwards in arbitrary order.
+# shellcheck disable=SC2034  # read by config_list_groups in common.sh
 KIT_CONFIG_GROUP_ORDER=(
   General
   Paths
