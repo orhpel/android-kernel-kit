@@ -20,3 +20,4 @@ Thumbs.db
 
 # Local configuration files
 .kit
+toolchains/*
