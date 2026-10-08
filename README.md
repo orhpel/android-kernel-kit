@@ -19,6 +19,12 @@ Or as a one-shot:
 build-it.sh -r -f              # build + repack + flash, in one go
 ~~~
 
+How it differs from the classic flow: traditionally you'd build the
+kernel, sign it, and assemble a fresh boot.img from scratch. AKK skips
+all that -- it takes an existing boot.img, swaps in the freshly built
+kernel, and repacks. No signing keys, no AVB work, no rebuilding what
+you already trust. Just a swap and a flash.
+
 Built for one thing and one thing only: getting your kernel onto your
 device, reliably, repeatedly, and with enough logs to figure out what
 went wrong when it doesn't.
@@ -53,6 +59,12 @@ are sourced, never executed.
   eat them.
 - **One config file per scope.** Config lives in `.kit` files — one for
   the kit, one per project. Not scattered across six hidden dot-files.
+- **Toolchains, configured once.** Set up a toolchain globally, and every
+  project picks it up. Or override per project when you need a different
+  one. Switch anytime with `toolchain.sh` — name on the CLI, or an
+  interactive menu if you prefer. Toolchain configs are plain shell
+  scripts that get sourced, so anything from a simple `CROSS_COMPILE`
+  prefix to a full custom environment is a one-liner away.
 - **Schema-driven.** Every option is declared once. Delta pruning keeps
   project files minimal: overrides that match the inherited value get
   removed automatically.
@@ -142,7 +154,7 @@ alt-screen would otherwise eat them.
 pack-it.sh                     # finds the newest kernel in BUILD_DIR
 pack-it.sh -b boot.img         # repack against a specific source image
 pack-it.sh -t boot-dt.img      # inject a device tree
-pack-it.sh -r ./overlay        # overlay files into the ramdisk
+pack-it.sh -r ./overlay        # overlay files (like a new fstab) into the ramdisk
 ~~~
 
 ### Flash
