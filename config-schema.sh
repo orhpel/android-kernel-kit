@@ -111,8 +111,12 @@ config_declare KIT_BUILD_CFG_VARIANT_NORMALIZE enum \
   --desc "Normalize .config after applying a variant"
 
 config_declare KIT_BUILD_CFG_VARIANT_CHECK bool \
-  --group Build --scope project --default 0 \
+  --group Build --scope both --default 0 \
   --desc "Warn at build time if .config diverges from the active variant"
+
+config_declare KIT_BUILD_CFG_VARIANT_TAG bool \
+  --group Build --scope both --default 0 \
+  --desc "Append active variant name to LOCALVERSION"
 
 # --- Clean ---------------------------------------------------
 

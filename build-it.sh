@@ -526,6 +526,11 @@ if [ "${do_clean}" -eq 1 ]; then
   fi
 fi
 
+# --- Effective variant ----------------------------------
+# The project's active variant (KIT_BUILD_CFG_VARIANT) or a -V
+# CLI override wins over the project's active variant.
+effective_variant="${variant_override:-${KIT_BUILD_CFG_VARIANT:-}}"
+
 # --- Build number ---------------------------------------
 
 BUILDNO="${KIT_BUILD_STATE_BUILDNO:-0}"
@@ -535,12 +540,18 @@ if [[ ! "$BUILDNO" =~ ^[0-9]+$ ]]; then
 fi
 BUILDNO=$((BUILDNO + 1))
 
+# --- Optionally tag LOCALVERSION with the variant -------
+# Opt-in via KIT_BUILD_CFG_VARIANT_TAG. The variant sits between
+# user content and the build number:
+#   <user suffix>-<variant>-build<N>
+if [ "${KIT_BUILD_CFG_VARIANT_TAG:-0}" = "1" ] && [ -n "$effective_variant" ]; then
+  lversion="${lversion:+${lversion}-}${effective_variant}"
+fi
+
 final_lversion="${lversion:+${lversion}-}build${BUILDNO}"
 
 # --- Apply variant (if any) -----------------------------
-# The project's active variant (KIT_BUILD_CFG_VARIANT) or a -V
 # override is applied to .config before make runs. Idempotent.
-effective_variant="${variant_override:-${KIT_BUILD_CFG_VARIANT:-}}"
 if [ -n "$effective_variant" ]; then
   if ! variant_exists "$effective_variant"; then
     echo "❌ Error: variant '$effective_variant' not found." >&2
