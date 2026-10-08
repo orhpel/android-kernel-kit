@@ -186,6 +186,7 @@ fi
 [ "${silent}" -eq 1 ] && export KIT_SILENT=1
 
 # Effective verbosity (silent wins)
+# shellcheck disable=SC2034  # read by run_tool in common.sh
 VERBOSE=$verbose
 [ "${silent}" -eq 1 ] && VERBOSE=0
 
