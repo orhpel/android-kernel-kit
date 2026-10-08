@@ -1049,8 +1049,6 @@ _kit_file_rewrite() {
   chmod 0644 "$tmp"
   mv -- "$tmp" "$file"
 }
-  mv -- "$tmp" "$file"
-}
 
 # config_write <VAR> <value> [<target_file>]
 #   Persist a value into the appropriate .kit file and update the
