@@ -358,7 +358,7 @@ if [ "${#make_args[@]}" -eq 0 ]; then
 fi
 
 # --- Effective verbosity --------------------------------
-
+# shellcheck disable=SC2034  # read by run_tool in common.sh
 VERBOSE=$verbose
 [ "${silence}" -eq 1 ] && VERBOSE=0
 
