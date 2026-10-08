@@ -491,10 +491,19 @@ define_group_menu() {
     add_config_entry "$var"
   done < <(config_list_vars "$group")
 
-  case "$group" in
-    Pack)  menu_action "Install Android Image Kitchen…" "action_install_aik" ;;
-    Build) menu_action "Install dtbTool…"                "action_install_dtbtool" ;;
-    General) menu_action "Download toolchain…"           "action_download_toolchain" ;;
+	case "$group" in
+    Pack)
+      menu_action "Install Android Image Kitchen…" "action_install_aik"
+      ;;
+    Build)
+      menu_action "Install dtbTool…"               "action_install_dtbtool"
+      if [ "$TARGET_KIND" = "project" ]; then
+        menu_action "Manage build variants…" "'${KIT_DIR}/variant-it.sh'"
+      fi
+      ;;
+    General)
+      menu_action "Download toolchain…"            "action_download_toolchain"
+      ;;
   esac
 
   menu_end "$name"

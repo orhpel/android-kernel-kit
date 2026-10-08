@@ -101,6 +101,19 @@ config_declare KIT_BUILD_OPT_LOCALVERSION string \
   --group Build --scope project --default "" \
   --desc "Kernel localversion suffix"
 
+config_declare KIT_BUILD_CFG_VARIANT string \
+  --group Build --scope project --default "" \
+  --desc "Active build variant (empty = no variant)"
+
+config_declare KIT_BUILD_CFG_VARIANT_NORMALIZE enum \
+  --group Build --scope project --default off \
+  --options "off olddefconfig oldconfig" \
+  --desc "Normalize .config after applying a variant"
+
+config_declare KIT_BUILD_CFG_VARIANT_CHECK bool \
+  --group Build --scope project --default 0 \
+  --desc "Warn at build time if .config diverges from the active variant"
+
 # --- Clean ---------------------------------------------------
 
 config_declare KIT_CLEAN_CFG_BACKUP_FILE string \

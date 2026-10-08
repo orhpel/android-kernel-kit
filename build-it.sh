@@ -178,6 +178,7 @@ orig_args=("$@")
 silence="${KIT_SILENT:-0}"
 verbose=0
 output=""
+variant_override=""
 
 do_repack=0
 do_flash=0
@@ -216,6 +217,7 @@ declare -A image_targets=(
 
 source "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/common.sh"
 source "${KIT_DIR}/stream.sh"
+source "${KIT_DIR}/variant.sh"
 
 # --help must work outside a project and before any tmux re-exec.
 for _arg in "${orig_args[@]}"; do
@@ -229,7 +231,7 @@ unset _arg
 # Expand clustered short options first so the pre-scan below sees
 # them individually (e.g. -cs → -c -s).
 expanded=()
-expand_clustered_options expanded "scArfhvN" "lobd" "$@"
+expand_clustered_options expanded "scArfhvN" "lobdV" "$@"
 set -- "${expanded[@]}"
 
 # Pre-scan for --no-tmux / -N and --silent / -s. Must happen before
@@ -287,6 +289,14 @@ while [ $# -gt 0 ]; do
     lversion="${lversion:+${lversion}-}${2}"
     shift 2
     ;;
+  -V | --variant)
+    if [ -z "${2:-}" ]; then
+      echo "❌ Error: ${1} requires a variant name." >&2
+      exit 1
+    fi
+    variant_override="${2}"
+    shift 2
+    ;;		
   -o | --output)
     if [ -z "${2:-}" ]; then
       echo "❌ Error: ${1} requires a path." >&2
@@ -526,6 +536,36 @@ fi
 BUILDNO=$((BUILDNO + 1))
 
 final_lversion="${lversion:+${lversion}-}build${BUILDNO}"
+
+# --- Apply variant (if any) -----------------------------
+# The project's active variant (KIT_BUILD_CFG_VARIANT) or a -V
+# override is applied to .config before make runs. Idempotent.
+effective_variant="${variant_override:-${KIT_BUILD_CFG_VARIANT:-}}"
+if [ -n "$effective_variant" ]; then
+  if ! variant_exists "$effective_variant"; then
+    echo "❌ Error: variant '$effective_variant' not found." >&2
+    echo "   Defined variants:" >&2
+    variant_list | sed 's/^/     - /' >&2
+    exit 1
+  fi
+  [ "${silence}" -eq 0 ] && echo "🔀 Applying variant: ${effective_variant}"
+	# --- Variant consistency check (opt-in) -----------------
+	# Only runs if the user enabled KIT_BUILD_CFG_VARIANT_CHECK. Warns
+	# when the current .config does not match any defined variant —
+	# which means it carries local edits that will survive the patch.
+	if [ "${KIT_BUILD_CFG_VARIANT_CHECK:-0}" = "1" ]; then
+		_variant_matches=()
+		mapfile -t _variant_matches < <(variant_detect .config 2>/dev/null)
+		if [ "${#_variant_matches[@]}" -eq 0 ]; then
+			warn ".config does not match any variant — local edits will be preserved across the patch."
+		fi
+	fi
+  variant_apply "$effective_variant" ".config" || {
+    echo "❌ Error: failed to apply variant '$effective_variant'." >&2
+    exit 1
+  }
+  variant_normalize || warn "Config normalization failed; continuing with patched .config."
+fi
 
 # --- Run ------------------------------------------------
 
