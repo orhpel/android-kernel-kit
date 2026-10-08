@@ -360,6 +360,7 @@ fi
 # --- Effective verbosity --------------------------------
 # shellcheck disable=SC2034  # read by run_tool in common.sh
 VERBOSE=$verbose
+# shellcheck disable=SC2034  # read by run_tool in common.sh
 [ "${silence}" -eq 1 ] && VERBOSE=0
 
 # --- Guard against unused repack options ----------------
