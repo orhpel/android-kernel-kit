@@ -136,7 +136,15 @@ done
 
 # --- Run make cleanups ----------------------------------
 
-make clean && make mrproper
+if ! run_tool make clean; then
+  echo "❌ Error: make clean failed." >&2
+  exit 1
+fi
+
+if ! run_tool make mrproper; then
+  echo "❌ Error: make mrproper failed." >&2
+  exit 1
+fi
 
 # --- Remove transient kit state -------------------------
 

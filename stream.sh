@@ -118,7 +118,7 @@ stream_ensure_tmux() {
   [ -t 0 ] && [ -t 1 ] || return 1
 
   local script="${1:?stream_ensure_tmux: script path required}"; shift
-	local abs_script
+  local abs_script
   if [[ "$script" == */* ]]; then
     abs_script=$(readlink -f -- "$script" 2>/dev/null) || abs_script="$script"
   else
@@ -130,11 +130,14 @@ stream_ensure_tmux() {
   local exitcode_file="${TMPDIR:-/tmp}/kit-tmux-$$.exit"
   rm -f -- "$exitcode_file"
 
-  # tmux config for the auto-launched session.
-  # - mouse on: lets the user scroll panes with the wheel instead of
-  #   leaking escape sequences to the running process.
-  # The user's own ~/.tmux.conf is sourced first if present, so custom
-  # bindings and theme survive.
+	# Dedicated tmux server for this session, on its own socket.
+  # Rationale:
+  #   - A fresh server reads the -f config on startup (an already
+  #     running server ignores -f entirely).
+  #   - Window options such as alternate-screen are applied when the
+  #     window is created, so they must be in place before new-session.
+  #   - The user's own tmux server and sessions are not touched.
+  local socket="${TMPDIR:-/tmp}/kit-tmux-$$.socket"
   local tmuxrc="${XDG_RUNTIME_DIR:-/tmp}/kit-tmux.conf"
   {
     if [ -f "$HOME/.tmux.conf" ]; then
@@ -143,29 +146,60 @@ stream_ensure_tmux() {
     printf 'set -g mouse on\n'
   } > "$tmuxrc" || return 1
 
-	# Build a tiny wrapper script that runs the target under bash and
-  # captures its exit code. Passing the command directly to tmux would
-  # mean nesting three quoting layers (fish -> bash -c -> command);
-  # a wrapper file avoids that entirely.
-	local wrapper="${TMPDIR:-/tmp}/kit-tmux-$$-wrapper.sh"
+  # Build a tiny wrapper script that runs the target under bash and
+  # captures its exit code. At the end it detaches the client so the
+  # outer shell can capture the pane contents before the server dies.
+  local wrapper="${TMPDIR:-/tmp}/kit-tmux-$$-wrapper.sh"
   {
     printf '#!/usr/bin/env bash\n'
     printf 'cd %q || exit 1\n' "$PWD"
     printf '%q ' "$abs_script" "$@"
     printf '\nec=$?\n'
-		# shellcheck disable=SC2016 # $ec is meant to be literal in the wrapper
+    # shellcheck disable=SC2016 # $ec is meant to be literal in the wrapper
     printf 'printf "%%s" "$ec" > %q\n' "$exitcode_file"
+    printf 'tmux -S %q detach-client -s %q 2>/dev/null || true\n' "$socket" "$session"
   } > "$wrapper" || return 1
   chmod +x "$wrapper"
 
-  printf '→ Launching tmux session for streamed build (KIT_COMMON_OPT_NO_TMUX=1 to disable)\n' >&2
-  tmux set-option -g mouse on 2>/dev/null || true
-	tmux -f "$tmuxrc" new-session -d -s "$session" "bash $wrapper"
-  tmux attach -t "$session" 2>/dev/null
+  # Dedicated tmux server for this session, on its own socket.
+  # Rationale:
+  #   - A fresh server reads the -f config on startup (an already
+  #     running server ignores -f entirely).
+  #   - Window options such as alternate-screen are applied when the
+  #     window is created, so they must be in place before new-session.
+  #   - The user's own tmux server and sessions are not touched.
+    local tmuxrc="${XDG_RUNTIME_DIR:-/tmp}/kit-tmux.conf"
+  {
+    if [ -f "$HOME/.tmux.conf" ]; then
+      printf 'source-file %q\n' "$HOME/.tmux.conf"
+    fi
+		printf 'set -g mouse on\n'
+    # Keep the pane around after its process exits, so the outer
+    # shell has time to capture-pane before the server shuts down.
+    printf 'set -g remain-on-exit on\n'
+    # Blank the "Pane is dead" banner; we only want the actual output.
+    printf 'set -g remain-on-exit-format ""\n'
+  } > "$tmuxrc" || return 1
+
+	tmux -S "$socket" -f "$tmuxrc" new-session -d -s "$session" "bash $wrapper"
+  tmux -S "$socket" attach -t "$session" 2>/dev/null
+
+  # The wrapper detached us before exiting, so the session is still
+  # alive here. Capture the pane's full scrollback before tearing
+  # down the server — this is what the user saw during the session.
+  #   -p        : print to stdout
+  #   -J        : join wrapped lines (avoid hard line breaks)
+  #   -S -      : start from the very beginning of the scrollback
+	local captured
+  captured=$(tmux -S "$socket" capture-pane -p -e -J -S - -t "$session" 2>/dev/null \
+             | awk '{l[NR]=$0; tmp=$0; gsub(/\033\[[0-9;]*m/, "", tmp); if(length(tmp)>0) n=NR} END{for(i=1;i<=n;i++) print l[i]}' || true)
+
+  tmux -S "$socket" kill-server 2>/dev/null || true
+  rm -f -- "$socket"
 
   rm -f -- "$wrapper"
 
-	local rc
+  local rc
   if [ -f "$exitcode_file" ]; then
     rc=$(<"$exitcode_file")
     rm -f -- "$exitcode_file"
@@ -174,39 +208,34 @@ stream_ensure_tmux() {
     printf '⚠️  tmux session exited without reporting a status; treating as failure.\n' >&2
   fi
 
-    printf '\n📋 tmux session ended (rc=%d).\n' "$rc" >&2
-  printf '   Session log: %s\n' "${KIT_COMMON_CFG_LOG_DIR:-$PWD/logs}" >&2
-
-  # tmux restores the terminal to its pre-tmux state on exit, so any
-  # output that was on screen inside the session is gone. Surface the
-  # error context here, in the outer shell, so the user actually sees it.
-  if [ "$rc" -ne 0 ]; then
-    local latest_log=""
-		local f
-		for f in "$PWD"/logs/run-*.log; do
-			[ -f "$f" ] || continue
-			latest_log="$f"
-		done
-    if [ -n "$latest_log" ] && [ -f "$latest_log" ]; then
-      local err_out
-      err_out=$(grep -i -C 15 "error:" "$latest_log" | tail -n 60) || true
-      if [ -z "$err_out" ]; then
-        err_out=$(tail -n 40 "$latest_log")
-      fi
-      if [ -n "$err_out" ]; then
-        printf '\n' >&2
-        printf '════════════════════════════════════════\n' >&2
-        printf '❌ Build failed (exit %d) — error context\n' "$rc" >&2
-        printf '════════════════════════════════════════\n' >&2
-        printf '%s\n' "$err_out" >&2
-        printf '════════════════════════════════════════\n' >&2
-      fi
-    fi
+	# Print the captured pane content. This is the session output the
+  # user watched inside tmux, now replayed in the outer shell.
+  if [ -n "$captured" ]; then
+    printf '\n' >&2
+    printf '%s\n' "$captured" >&2
   fi
 
-  # Exit the outer script so we don't fall through into a second build.
+  # Point at the log file for anyone who wants the raw session record.
+  local log_dir
+  if [ -n "${KIT_COMMON_CFG_LOG_DIR:-}" ]; then
+    log_dir="$KIT_COMMON_CFG_LOG_DIR"
+  else
+    local proj_root
+    proj_root=$(find_project_folder 2>/dev/null || true)
+    log_dir="${proj_root:-$PWD}/logs"
+  fi
+  local latest_log="" f
+  for f in "$log_dir"/run-*.log; do
+    [ -f "$f" ] || continue
+    latest_log="$f"
+  done
+  if [ -n "$latest_log" ]; then
+    printf '\n📋 Session log: %s\n' "$(readlink -f -- "$latest_log")" >&2
+  fi
+
   exit "$rc"
 }
+
 
 # stream_pane_open <stream_log> <title>
 #   Opens a tmux pane that follows <stream_log>.
@@ -386,17 +415,4 @@ ui_stream() {
   eval "${_saved_traps:-:}"
 
   return "$rc"
-}
-
-# stream_pause_on_error <rc>
-#   If the script is running inside an auto-launched tmux session and <rc>
-#   is non-zero, waits for the user to press Enter. Keeps the tmux session
-#   alive so the error output stays visible; otherwise tmux immediately
-#   restores the parent terminal's alternate screen and the output is lost.
-stream_pause_on_error() {
-  [ "${1:-0}" -eq 0 ] && return 0
-  [ "${KIT_TMUX_AUTO_LAUNCHED:-0}" -eq 1 ] || return 0
-	printf '\n--- Press Enter to close the tmux session --- ' >&2
-  read -rsr </dev/tty 2>/dev/null || true
-  printf '\n' >&2
 }

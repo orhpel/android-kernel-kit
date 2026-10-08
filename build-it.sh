@@ -257,9 +257,11 @@ if [ "${KIT_COMMON_CFG_NERDFONT:-0}" = "1" ] || [ -n "${KIT_PIPELINE_STATE:-}" ]
   fi
 fi
 
-stream_ensure_tmux "${BASH_SOURCE[0]}" "${orig_args[@]}" || true
-
+# Verify we're inside a kernel project before launching tmux — otherwise
+# the inner re-exec would fail and hide the error inside a tmux session.
 cd_project_root || exit 1
+
+stream_ensure_tmux "${BASH_SOURCE[0]}" "${orig_args[@]}" || true
 log_init "$(basename -- "$0")" "${orig_args[@]}"
 load_toolchain || exit 1
 
@@ -506,8 +508,8 @@ if [ "${do_clean}" -eq 1 ]; then
     exit 1
   fi
 
-	[ "${silence}" -eq 1 ] || echo "🧹 Running cleanup before build ..."
   powerline_emit clean-it
+	[ "${silence}" -eq 1 ] || echo "🧹 Running cleanup before build ..."
   if ! "${KIT_DIR}/clean-it.sh" "${clean_args[@]}"; then
     echo "❌ Error: clean-it.sh failed." >&2
     exit 1
@@ -535,14 +537,13 @@ make_cmd=(
   "${make_args[@]}"
   LOCALVERSION="${final_lversion}"
 )
+powerline_emit build-it
 
 if [ "${silence}" -eq 0 ]; then
   echo "Starting kernel build #${BUILDNO}"
   printf '🐚 ' >&2
   print_cmd "${make_cmd[@]}" >&2
 fi
-
-powerline_emit build-it
 
 if [ "${silence}" -eq 1 ]; then
   # Silent: no terminal output at all, full capture in log.
@@ -586,8 +587,6 @@ rm -f "${TEMP_LOG}"
 
 config_state_set KIT_BUILD_STATE_REF_LINES "$build_lines" >/dev/null
 config_state_set KIT_BUILD_STATE_BUILDNO   "$BUILDNO"     >/dev/null
-
-next_buildno
 
 # --- Generate boot-dt.img (if applicable) ---------------
 

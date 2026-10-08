@@ -296,6 +296,13 @@ _pinfo() {
   printf '%s\n' "$*"
 }
 
+# --- Pipeline progress ----------------------------------
+# Only renders when this script was invoked as part of a chain
+# (build-it.sh exports KIT_PIPELINE_STATE). Standalone runs are a
+# no-op.
+
+powerline_emit pack-it
+
 # --- Pre-auth sudo for AIK ------------------------------
 # AIK's cleanup.sh needs root to remove the ramdisk dir.
 # Prompting for a password *inside* our tee'd region leaves
@@ -312,12 +319,6 @@ fi
 # Install logging only now – after arg parsing, so --help
 # and auth errors don't produce empty log sections.
 log_init "$(basename -- "$0")" "${orig_args[@]}"
-
-# --- Pipeline progress ----------------------------------
-# Only renders when this script was invoked as part of a chain
-# (build-it.sh exports KIT_PIPELINE_STATE). Standalone runs are a
-# no-op.
-powerline_emit pack-it
 
 # --- Resolve positional arguments -----------------------
 
