@@ -17,3 +17,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.iml
+
+# Local configuration files
+.kit
