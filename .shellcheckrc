@@ -1,0 +1,5 @@
+# Allow ShellCheck to follow sourced files
+external-sources=true
+
+# Disable some warnings (false flags)
+disable=SC1090,SC1091
