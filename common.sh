@@ -1043,6 +1043,12 @@ _kit_file_rewrite() {
     fi
   fi
 
+  # mktemp creates files with mode 0600 by design (avoids races with
+  # other users). The .kit file is a normal project file and should
+  # not be restricted to the owner only — group and other read is fine.
+  chmod 0644 "$tmp"
+  mv -- "$tmp" "$file"
+}
   mv -- "$tmp" "$file"
 }
 
