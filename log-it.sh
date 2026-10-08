@@ -127,6 +127,7 @@ if [ -z "${log_dir}" ]; then
   exit 1
 fi
 
+# shellcheck disable=SC2034  # read by run_tool in common.sh
 VERBOSE=$verbose
 [ "${silent}" -eq 1 ] && VERBOSE=0
 
