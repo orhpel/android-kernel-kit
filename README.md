@@ -72,6 +72,10 @@ are sourced, never executed.
   install them (AIK, dtbTool, toolchain). Nothing happens without your
   say-so.
 - **NerdFont progress line** for people who like their terminal pretty.
+- **Full --help on every script.** Every script ships with a complete
+  usage text -- usage, description, arguments, options, examples, and
+  exit codes. No guessing, no reading the source. Just run any script
+  with -h or --help and it tells you exactly what it does.
 - **Pure bash.** No Python, no build server, no "install our CLI" ritual.
 
 ## The philosophy
