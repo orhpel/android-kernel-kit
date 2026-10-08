@@ -1,5 +1,8 @@
 # Android Kernel Kit
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![ShellCheck](https://github.com/orhpel/android-kernel-kit/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/orhpel/android-kernel-kit/actions/workflows/shellcheck.yml)
+
 > The missing toolkit between `make zImage` and _"it booted!"_
 
 **AKK** is a bash toolkit for the Android kernel dev workflow.
