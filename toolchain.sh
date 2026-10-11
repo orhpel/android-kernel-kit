@@ -6,8 +6,9 @@
 # Inspect or change the toolchain selected for the
 # current project.
 #
-# The selection is stored as KIT_COMMON_CFG_TOOLCHAIN in the
-# project's .kit file and read by load_toolchain() at build time.
+# The selection is stored as KIT_COMMON_CFG_TOOLCHAIN. It can live
+# in the global .kit (default for every project) or in a project's
+# .kit (override). Both are read by load_toolchain() at build time.
 # This script is a convenience wrapper around that setting.
 # ========================================================
 
@@ -21,27 +22,26 @@ USAGE
     toolchain.sh [OPTIONS] [NAME]
 
 DESCRIPTION
-    Manage the toolchain selection for the current project. The
-    value is stored as KIT_COMMON_CFG_TOOLCHAIN in the project's
-    .kit file and read by load_toolchain() at build time.
+    Manage the toolchain selection. The value is stored as
+    KIT_COMMON_CFG_TOOLCHAIN: globally when set from a global
+    context, project-locally when set from inside a project.
+    load_toolchain() reads the effective value at build time.
 
     Without arguments, the current selection and the list of
     available toolchains are shown.
 
 ARGUMENTS
     NAME    Name of the toolchain to select. Must match a file in
-            <KIT_DIR>/toolchains/<NAME>.sh. The special value
-            "default" is a regular choice: load_toolchain() also
-            falls back to it when no explicit selection is made.
+            <KIT_DIR>/toolchains/<NAME>.sh.
 
 OPTIONS
     -m, --menu
         Show an interactive picker with arrow-key navigation.
 
     -u, --unset
-        Remove any project-level override. The project falls back
-        to whatever the inherited value is (schema default or a
-        global selection).
+        Remove the project-level override. The project falls back
+        to whatever the inherited value is (global selection, or
+        no toolchain at all if none is configured globally).
 
     -h, --help
         Show this help and exit.
@@ -86,9 +86,8 @@ if [ ! -d "$TOOLCHAIN_DIR" ]; then
 fi
 
 # Effective selection after config_load: schema default, global .kit and
-# project .kit have already been merged. This is what load_toolchain()
-# will see at build time.
-CURRENT="${KIT_COMMON_CFG_TOOLCHAIN:-default}"
+# project .kit have already been merged. Empty means "nothing set".
+CURRENT="${KIT_COMMON_CFG_TOOLCHAIN:-}"
 
 # Populate the list of available toolchains.
 TOOLCHAINS=()
@@ -110,18 +109,16 @@ toolchain_exists() {
 
 show_status() {
   echo "🔧 Toolchain for $PWD"
-  echo "   Current:   $CURRENT"
+  if [ -n "$CURRENT" ]; then
+    echo "   Current:   $CURRENT"
+  else
+    echo "   Current:   (not set)"
+  fi
   echo
 
-  if ! toolchain_exists "$CURRENT"; then
+  if [ -n "$CURRENT" ] && ! toolchain_exists "$CURRENT"; then
     echo "⚠️  '$CURRENT' is configured but no longer available." >&2
     echo "   Run 'toolchain.sh --unset' or pick a new one." >&2
-    echo
-  fi
-
-  if ! toolchain_exists default; then
-    echo "⚠️  No 'default' toolchain found in $TOOLCHAIN_DIR." >&2
-    echo "   Projects without an explicit selection will fail to build." >&2
     echo
   fi
 
@@ -174,7 +171,11 @@ unset_toolchain() {
   fi
 
   config_write KIT_COMMON_CFG_TOOLCHAIN "$inherited" >/dev/null
-  echo "🧹 Cleared project toolchain override (now using '$inherited')."
+  if [ -n "$inherited" ]; then
+    echo "🧹 Cleared project toolchain override (now using '$inherited')."
+  else
+    echo "🧹 Cleared project toolchain override (no toolchain configured)."
+  fi
 }
 
 # --- Menu -----------------------------------------------

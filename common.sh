@@ -297,24 +297,42 @@ find_project_marker() {
   return 1
 }
 
+# --- Project handling ----------------------------------
+
+# find_project_folder
+#   Walk upward from $PWD and print the first directory that looks
+#   like a project root. A directory qualifies if it contains either:
+#     - a .kit config file, or
+#     - both Makefile and AndroidKernel.mk
+#   Silent on failure; callers report the error.
 find_project_folder() {
-	local dir
-  if ! dir=$(find_project_marker); then
-		if ! dir=$(find_project_files); then
-			echo "❌ Error: It seems that you are not in an android kernel project-folder (no .project marker or Android-kernel make-files found)." >&2
-			echo "👉 Please create an empty file called '.project', in the root folder of your android kernel project." >&2
-			return 1
-		fi
-	fi
-	printf '%s\n' "$dir"
-	return 0
+  local dir="$PWD"
+  while [ "$dir" != "/" ] && [ -n "$dir" ]; do
+    # Skip the kit directory: the .kit there is the global config,
+    # not a project marker.
+    if [ "$dir" != "$KIT_DIR" ]; then
+      if [ -f "$dir/.kit" ]; then
+        printf '%s\n' "$dir"
+        return 0
+      fi
+      if [ -f "$dir/AndroidKernel.mk" ] && [ -f "$dir/Makefile" ]; then
+        printf '%s\n' "$dir"
+        return 0
+      fi
+    fi
+    dir="$(dirname -- "$dir")"
+  done
+  return 1
 }
 
 cd_project_root() {
   local root
-  if ! root=$(find_project_folder); then
-    echo "❌ Error: It seems that you are not in a project-folder (no .project marker found)." >&2
-    echo "👉 Please create an empty file called '.project', in the root folder of your project." >&2
+  if ! root="$(find_project_folder)"; then
+    echo "❌ Error: not inside an Android kernel project." >&2
+    echo "   The kit identifies a project by the presence of either:" >&2
+    echo "     - a .kit config file, or" >&2
+    echo "     - Makefile and AndroidKernel.mk" >&2
+    echo "   in the current directory or any of its parents." >&2
     return 1
   fi
   cd "$root" || return 1
@@ -458,7 +476,14 @@ if [ -z "${active_toolchain+set}" ]; then
 fi
 
 load_toolchain() {
-  local name="${KIT_COMMON_CFG_TOOLCHAIN:-default}"
+  local name="${KIT_COMMON_CFG_TOOLCHAIN:-}"
+
+  if [ -z "$name" ]; then
+    echo "❌ No toolchain configured." >&2
+    echo "   Run 'config-it.sh' to select one, or place a toolchain" >&2
+    echo "   definition under ${KIT_DIR}/toolchains/ and pick it there." >&2
+    return 1
+  fi
 
 	# No need to load a toolchain twice
 	if [ "$active_toolchain" = "${name}" ]; then
@@ -910,7 +935,7 @@ _cfg_apply_file() {
 #   Prints the project root that owns the effective project .kit,
 #   or nothing if we are not inside a project.
 _cfg_project_root() {
-  find_project_marker 2>/dev/null || find_project_files 2>/dev/null || true
+  find_project_folder 2>/dev/null || true
 }
 
 declare -gA _CFG_ENV_SNAPSHOT
@@ -1078,10 +1103,19 @@ config_write() {
     return 1
   }
 
-  # Delta pruning: project-overridable vars whose new value equals the
-  # inherited value are removed from the project .kit instead of being
-  # written. Keeps the project file minimal.
+	# Delta pruning only makes sense when the target is the *project*
+  # file: that is the file whose entries exist to override an
+  # inherited value. The global file is the source of truth for its
+  # own scope and must never prune against itself — otherwise writing
+  # the same value twice would delete the entry the user just asked
+  # for.
+  local prune=0
   if [ "$scope" = "project" ] || [ "$scope" = "both" ]; then
+    local proj_kit; proj_kit="$(_cfg_project_root)/.kit"
+    [ "$file" = "$proj_kit" ] && prune=1
+  fi
+
+  if [ "$prune" -eq 1 ]; then
     if [ "$value" = "$(config_inherited_value "$var")" ]; then
       _kit_file_remove "$file" "$var"
       printf -v "$var" '%s' "$value"

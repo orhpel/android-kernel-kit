@@ -29,9 +29,9 @@ _CONFIG_SCHEMA_SH_LOADED=1
 # --- General -------------------------------------------------
 
 config_declare KIT_COMMON_CFG_TOOLCHAIN enum \
-  --group General --scope project --default default \
+  --group General --scope both --default "" \
   --options-from-dir "${KIT_DIR}/toolchains" \
-  --desc "Toolchain profile to load for this project"
+  --desc "Toolchain profile (empty = not configured)"
 
 config_declare KIT_COMMON_CFG_ADB_WAIT_INTERVAL int \
   --group ADB --scope global --default 2 --min 1 \

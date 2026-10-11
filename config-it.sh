@@ -96,16 +96,24 @@ find_projects_downwards() {
   declare -A seen=()
   while IFS= read -r file; do
     dir="$(dirname -- "$file")"
-    [ -f "${dir}/Makefile" ] && [ -f "${dir}/AndroidKernel.mk" ] && seen["$dir"]=1
+    [ "$dir" = "$KIT_DIR" ] && continue
+    case "$(basename -- "$file")" in
+      .kit)
+				seen["$dir"]=1
+				;;
+      Makefile|AndroidKernel.mk)
+        [ -f "${dir}/Makefile" ] && [ -f "${dir}/AndroidKernel.mk" ] && seen["$dir"]=1
+        ;;
+    esac
   done < <(find "$PWD" -maxdepth "$depth" -type f \
-             \( -name Makefile -o -name AndroidKernel.mk \) 2>/dev/null)
+  	\( -name Makefile -o -name AndroidKernel.mk -o -name .kit \) 2>/dev/null)
   printf '%s\n' "${!seen[@]}" | sort
 }
 
 project_root_of() {
   local saved="$PWD" root
   cd "$1" 2>/dev/null || return 1
-  root="$(find_project_marker 2>/dev/null || find_project_files 2>/dev/null || true)"
+  root="$(find_project_folder 2>/dev/null || true)"
   cd "$saved" || return 1
   printf '%s\n' "$root"
 }
@@ -351,11 +359,14 @@ action_download_toolchain() {
     echo "⚠️  Could not checkout $ref; leaving default branch." >&2
   fi
 
-  # If a matching toolchain-X.sh exists, offer to activate it.
+	# If a matching toolchain-X.sh exists, offer to activate it.
+  # Always write to the global .kit: the confirm prompt says
+  # "for all projects", and the variable would otherwise land in
+  # the project file via the default scope derivation.
   local script_name="toolchain-${short}"
   if [ -f "${KIT_DIR}/toolchains/${script_name}.sh" ]; then
     if gum confirm "Activate toolchain '${script_name}' for all projects?"; then
-      config_write KIT_COMMON_CFG_TOOLCHAIN "$script_name" >/dev/null
+      config_write KIT_COMMON_CFG_TOOLCHAIN "$script_name" "${KIT_DIR}/.kit" >/dev/null
       echo "✅ Toolchain set to ${script_name}"
     fi
   else
@@ -492,6 +503,34 @@ add_config_entry() {
   esac
 }
 
+# _var_in_target_scope <var>
+#   Return 0 if the variable is editable in the current TARGET_KIND.
+_var_in_target_scope() {
+  local var="$1"
+  local scope; scope="$(config_meta "$var" scope)"
+  case "$TARGET_KIND:$scope" in
+    global:global|global:both|project:project|project:both) return 0 ;;
+  esac
+  return 1
+}
+
+# _editable_groups
+#   Print each group that has at least one var editable in the current
+#   TARGET_KIND. Order follows config_list_groups.
+_editable_groups() {
+  local group var has
+  while IFS= read -r group; do
+    has=0
+    while IFS= read -r var; do
+      if _var_in_target_scope "$var"; then
+        has=1
+        break
+      fi
+    done < <(config_list_vars "$group")
+    [ "$has" -eq 1 ] && printf '%s\n' "$group"
+  done < <(config_list_groups)
+}
+
 define_group_menu() {
   local group="$1" name="$2"
   local header
@@ -500,16 +539,20 @@ define_group_menu() {
     project) header="⚙  Project (${TARGET_ROOT##*/}) — ${group}" ;;
   esac
 
-  # Pre-compute the widest variable name in this group so the
-  # trailing metadata markers ([scope: ...] etc.) line up.
-  local max_var_len=0 var
+	# Pre-compute the widest variable name among *editable* vars in this
+  # group, then emit one entry per editable var. Vars whose scope does
+  # not match the current TARGET_KIND are skipped entirely — the user
+  # only sees what they can actually change here.
+  local max_var_len=0 var vlen
   while IFS= read -r var; do
-    local vlen="${#var}"
+    _var_in_target_scope "$var" || continue
+    vlen="${#var}"
     [ "$vlen" -gt "$max_var_len" ] && max_var_len="$vlen"
   done < <(config_list_vars "$group")
 
   menu_begin "$header"
   while IFS= read -r var; do
+    _var_in_target_scope "$var" || continue
     add_config_entry "$var" "$max_var_len"
   done < <(config_list_vars "$group")
 
@@ -532,6 +575,7 @@ define_group_menu() {
 }
 
 define_root_menu() {
+  local -a groups=("$@")
   local header
   case "$TARGET_KIND" in
     global)  header="⚙  Kit configuration (global)" ;;
@@ -542,12 +586,12 @@ define_root_menu() {
 
   menu_action "Quick setup" "action_quick_setup"
 
-  local group idx=0 name
-  while IFS= read -r group; do
+  local idx=0 name group
+  for group in "${groups[@]}"; do
     name="cfg_group_${idx}"
     menu_submenu "$group" "$name"
     idx=$((idx + 1))
-  done < <(config_list_groups)
+  done
 
   menu_action "Show target file" "printf '%s\n' '${target_file}'"
   menu_action "Done" "true" --close
@@ -601,17 +645,27 @@ fi
 
 require_gum || exit 1
 
+# Compute the groups once and reuse everywhere — the indices of
+# cfg_group_N must match between group-menu construction and the
+# submenu links in the root menu.
+mapfile -t editable_groups < <(_editable_groups)
+
+if [ "${#editable_groups[@]}" -eq 0 ]; then
+  echo "ℹ️  No editable configuration in target '$TARGET_KIND'." >&2
+  exit 0
+fi
+
 local_group_idx=0
-while IFS= read -r group; do
+for group in "${editable_groups[@]}"; do
   define_group_menu "$group" "cfg_group_${local_group_idx}"
   local_group_idx=$((local_group_idx + 1))
-done < <(config_list_groups)
+done
 
-define_root_menu
+define_root_menu "${editable_groups[@]}"
 menu_run cfg_root || exit 1
 
-while IFS= read -r group; do
+for group in "${editable_groups[@]}"; do
   write_back_changes "$group"
-done < <(config_list_groups)
+done
 
 exit 0
