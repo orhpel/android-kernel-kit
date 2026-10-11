@@ -100,6 +100,27 @@ declare -g _MENU_ARG_FLAGS=""
 : "${KIT_MENU_CFG_COLOR_ITEM:=}"
 : "${KIT_MENU_CFG_COLOR_HEADER:=}"
 
+# _display_width <string>
+#   Visual width of <string> in terminal cells. Bash's ${#s} counts
+#   codepoints, but terminals render emoji and many symbols double-
+#   width. Approximation: every non-ASCII codepoint counts as two.
+#   Correct for the kit's defaults (✅ ⬛ ▶ 📁 …) and wrong only for
+#   a handful of single-width Unicode chars that never appear in
+#   the alignment-sensitive columns.
+_display_width() {
+  local s="$1" width=0 i ch
+  local len="${#s}"
+  for ((i = 0; i < len; i++)); do
+    ch="${s:i:1}"
+    if [[ "$ch" == [!\ -~] ]]; then
+      width=$((width + 2))
+    else
+      width=$((width + 1))
+    fi
+  done
+  printf '%s' "$width"
+}
+
 # --- Value access ---------------------------------------
 
 # Read a variable by name; empty string if unset.
@@ -177,6 +198,32 @@ _menu_flag_val() {
     esac
   done
   return 1
+}
+
+# _menu_status_string <key>
+#   Return the rendered status string for an entry, or an empty
+#   string for entry types that don't carry one (action, submenu).
+#   Extracted from _menu_render_label so the runner can compute the
+#   widest status across a menu and pad every entry to match.
+_menu_status_string() {
+  local key="$1"
+  local type="${_MENU_TYPE[$key]}"
+  local var="${_MENU_VAR[$key]:-}"
+  case "$type" in
+    bool)
+      if [ "$(_menu_get_var "$var")" = "1" ]; then
+        printf '%s' "$KIT_MENU_CFG_SYMBOL_CHECKED"
+      else
+        printf '%s' "$KIT_MENU_CFG_SYMBOL_UNCHECKED"
+      fi
+      ;;
+    enum|int|string|file|dir)
+      printf '[%s]' "$(_menu_get_var "$var")"
+      ;;
+    *)
+      printf ''
+      ;;
+  esac
 }
 
 # --- Builder internals ----------------------------------
@@ -370,33 +417,34 @@ menu_dir() {
 _menu_render_label() {
   local key="$1"
   local pad_width="${2:-0}"
+  local status_pad="${3:-0}"
   local type="${_MENU_TYPE[$key]}"
   local label="${_MENU_LABEL[$key]}"
-  local var="${_MENU_VAR[$key]:-}"
   local desc="${_MENU_DESC[$key]:-}"
   local out
 
   if [ "$type" = "action" ]; then
     out="${KIT_MENU_CFG_SYMBOL_ACTION} ${label}"
   else
-    if [ "${#label}" -lt "$pad_width" ]; then
-      printf -v label '%s%*s' "$label" "$((pad_width - ${#label}))" ""
+    local label_w
+    label_w="$(_display_width "$label")"
+    if [ "$label_w" -lt "$pad_width" ]; then
+      printf -v label '%s%*s' "$label" "$((pad_width - label_w))" ""
     fi
 
     case "$type" in
       submenu)
         out="${KIT_MENU_CFG_SYMBOL_SUBMENU} ${label}"
         ;;
-      bool)
-        local v; v="$(_menu_get_var "$var")"
-        if [ "$v" = "1" ]; then
-          out="${label}  ${KIT_MENU_CFG_SYMBOL_CHECKED}"
-        else
-          out="${label}  ${KIT_MENU_CFG_SYMBOL_UNCHECKED}"
+      bool|enum|int|string|file|dir)
+        local st st_padded st_w
+        st="$(_menu_status_string "$key")"
+        st_w="$(_display_width "$st")"
+        st_padded="$st"
+        if [ "$st_w" -lt "$status_pad" ]; then
+          printf -v st_padded '%s%*s' "$st" "$((status_pad - st_w))" ""
         fi
-        ;;
-      enum|int|string|file|dir)
-        out="${label}  [$(_menu_get_var "$var")]"
+        out="${label}  ${st_padded}"
         ;;
       *)
         out="$label"
@@ -572,25 +620,32 @@ menu_run() {
     return 1
   fi
 
-    local -a labels=()
+	local -a labels=()
   local i choice idx key type prev_idx=0
   local -a choose_args
-  local max_w lw
+  local max_w max_status_w
 
   while true; do
-    # Compute the padding width from non-action entries, since only
-    # those have a state column that needs alignment.
-    max_w=0
+    # Compute the label padding width and the status padding width
+    # separately, so value entries line up on both columns regardless
+    # of their type.
+		max_w=0
+    max_status_w=0
+    local _st _sw _lw
     for ((i = 0; i < count; i++)); do
       key="${name}:${i}"
       [ "${_MENU_TYPE[$key]}" = "action" ] && continue
-      lw="${#_MENU_LABEL[$key]}"
-      [ "$lw" -gt "$max_w" ] && max_w="$lw"
+      [ "${_MENU_TYPE[$key]}" = "submenu" ] && continue
+      _lw="$(_display_width "${_MENU_LABEL[$key]}")"
+      [ "$_lw" -gt "$max_w" ] && max_w="$_lw"
+      _st="$(_menu_status_string "$key")"
+      _sw="$(_display_width "$_st")"
+      [ "$_sw" -gt "$max_status_w" ] && max_status_w="$_sw"
     done
 
     labels=()
     for ((i = 0; i < count; i++)); do
-      labels+=("$(_menu_render_label "${name}:${i}" "$max_w")")
+      labels+=("$(_menu_render_label "${name}:${i}" "$max_w" "$max_status_w")")
     done
 
 		choose_args=(--header "$title")

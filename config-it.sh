@@ -397,11 +397,12 @@ You can skip any step; nothing will be configured without your consent."
 
 # add_config_entry <var>
 #   Emits one menu_* entry for a config variable.
+#   Layout: <desc>  <status>  —  <VAR>  [scope: ...]  [override]  [⚠️]
 add_config_entry() {
   local var="$1"
-  local type group desc placeholder value scope inherited mandatory
+  local max_var_len="${2:-0}"
+  local type desc placeholder value scope inherited mandatory
   type="$(config_meta "$var" type)"
-  group="$(config_meta "$var" group)"
   desc="$(config_meta "$var" desc)"
   placeholder="$(config_meta "$var" placeholder)"
   scope="$(config_meta "$var" scope)"
@@ -409,15 +410,25 @@ add_config_entry() {
   value="${!var:-}"
   inherited="$(config_inherited_value "$var" 2>/dev/null || true)"
 
-  case "$scope" in
-    global)  desc="${desc}  [scope: global]" ;;
-    project) desc="${desc}  [scope: project]" ;;
-    both)    desc="${desc}  [scope: both]" ;;
-  esac
+  # Left side (menu label): human-readable description. menu.sh
+  # pads it to the group's widest description and appends the value
+  # column with the same alignment across all types.
+  local label_text="$desc"
 
-	if [ "$value" != "$inherited" ]; then
-    desc="${desc}  [override]"
+  # Right side (--desc, shown after the em-dash): variable name,
+  # padded to the group's widest name so the trailing markers align.
+  local padded_var="$var"
+  if [ "${#var}" -lt "$max_var_len" ]; then
+    printf -v padded_var '%s%*s' "$var" "$((max_var_len - ${#var}))" ""
   fi
+
+  local markers=""
+  case "$scope" in
+    global)  markers="[scope: global]" ;;
+    project) markers="[scope: project]" ;;
+    both)    markers="[scope: both]" ;;
+  esac
+  [ "$value" != "$inherited" ] && markers="${markers}  [override]"
 
   # Type-aware "mandatory" check: for paths, verify existence; for
   # enums sourced from a directory, verify a matching file is present;
@@ -436,14 +447,17 @@ add_config_entry() {
         ;;
       string) [ -z "$value" ] && missing=1 ;;
     esac
-    [ "$missing" = "1" ] && desc="⚠️  required — ${desc}"
+    [ "$missing" = "1" ] && markers="⚠️  required  ${markers}"
   fi
 
-  local args=(--desc "$desc")
+  local desc_text="${padded_var}"
+  [ -n "$markers" ] && desc_text="${desc_text}  ${markers}"
+
+  local args=(--desc "$desc_text")
 
   case "$type" in
     bool)
-      menu_bool "$var" "$var" "${args[@]}"
+      menu_bool "$label_text" "$var" "${args[@]}"
       ;;
     enum)
       local opts_str opts_dir
@@ -459,7 +473,7 @@ add_config_entry() {
           opts_arr+=("$(basename -- "$opt" .sh)")
         done
       fi
-      menu_enum "$var" "$var" "${opts_arr[@]}" "${args[@]}"
+      menu_enum "$label_text" "$var" "${opts_arr[@]}" "${args[@]}"
       ;;
     int)
       local min max
@@ -467,14 +481,14 @@ add_config_entry() {
       max="$(config_meta "$var" max)"
       [ -n "$min" ] && args+=(--min "$min")
       [ -n "$max" ] && args+=(--max "$max")
-      menu_int "$var" "$var" "${args[@]}"
+      menu_int "$label_text" "$var" "${args[@]}"
       ;;
     string)
       [ -n "$placeholder" ] && args+=(--placeholder "$placeholder")
-      menu_string "$var" "$var" "${args[@]}"
+      menu_string "$label_text" "$var" "${args[@]}"
       ;;
-    file)  args+=(--check); menu_file "$var" "$var" "${args[@]}" ;;
-    dir)   args+=(--check); menu_dir  "$var" "$var" "${args[@]}" ;;
+    file)  args+=(--check); menu_file "$label_text" "$var" "${args[@]}" ;;
+    dir)   args+=(--check); menu_dir  "$label_text" "$var" "${args[@]}" ;;
   esac
 }
 
@@ -485,10 +499,18 @@ define_group_menu() {
     global)  header="⚙  Global — ${group}" ;;
     project) header="⚙  Project (${TARGET_ROOT##*/}) — ${group}" ;;
   esac
-  menu_begin "$header"
-  local var
+
+  # Pre-compute the widest variable name in this group so the
+  # trailing metadata markers ([scope: ...] etc.) line up.
+  local max_var_len=0 var
   while IFS= read -r var; do
-    add_config_entry "$var"
+    local vlen="${#var}"
+    [ "$vlen" -gt "$max_var_len" ] && max_var_len="$vlen"
+  done < <(config_list_vars "$group")
+
+  menu_begin "$header"
+  while IFS= read -r var; do
+    add_config_entry "$var" "$max_var_len"
   done < <(config_list_vars "$group")
 
 	case "$group" in
