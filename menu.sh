@@ -86,10 +86,12 @@ declare -g _MENU_ARG_FLAGS=""
 # --- Appearance ----------------------------------------
 
 # Symbols used in rendered labels. Override before sourcing if needed.
-: "${KIT_MENU_CFG_SYMBOL_ACTION:=$'\uf4b5'}"
+#: "${KIT_MENU_CFG_SYMBOL_ACTION:=$'\uf4b5'}" Nerdfont version
+: "${KIT_MENU_CFG_SYMBOL_ACTION:=▶}"
 : "${KIT_MENU_CFG_SYMBOL_CHECKED:=✅}"
 : "${KIT_MENU_CFG_SYMBOL_UNCHECKED:=⬛}"
-: "${KIT_MENU_CFG_SYMBOL_SUBMENU:=$'\uf114'}"
+#: "${KIT_MENU_CFG_SYMBOL_SUBMENU:=$'\uf114'}" Nerdfont version
+: "${KIT_MENU_CFG_SYMBOL_SUBMENU:=📁}"
 
 # gum choose styling. These are passed to gum directly, so they use
 # gum's own color handling and are independent of any label content.
