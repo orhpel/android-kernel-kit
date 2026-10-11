@@ -1184,22 +1184,22 @@ config_list_vars() {
 }
 
 # config_list_groups
-#   Prints all groups that have at least one visible variable, in the
-#   canonical order declared by KIT_CONFIG_GROUP_ORDER. Any group not
-#   listed there is appended afterwards.
+#   Print all top-level groups that have at least one visible var, in
+#   the canonical order declared by KIT_CONFIG_GROUP_ORDER. Groups not
+#   listed there are appended afterwards. Nested groups (e.g.
+#   "Build/tmux") are collapsed to their top-level component.
 config_list_groups() {
-  local var group
+  local var group top
   local -A present=()
 
-  # Collect groups that have at least one visible var.
   for var in "${!_CFG_TYPE[@]}"; do
     [ "${_CFG_HIDDEN[$var]}" = "1" ] && continue
     group="${_CFG_GROUP[$var]}"
     [ -z "$group" ] && continue
-    present["$group"]=1
+    top="${group%%/*}"
+    present["$top"]=1
   done
 
-  # Emit in canonical order first.
   if declare -p KIT_CONFIG_GROUP_ORDER >/dev/null 2>&1; then
     for group in "${KIT_CONFIG_GROUP_ORDER[@]}"; do
       [ -n "${present[$group]+set}" ] || continue
@@ -1208,10 +1208,37 @@ config_list_groups() {
     done
   fi
 
-  # Then any remaining groups (not in the list) in arbitrary order.
   for group in "${!present[@]}"; do
     printf '%s\n' "$group"
   done
+}
+
+# config_list_subgroups <parent>
+#   Print all direct subgroups of <parent>, alphabetically. A subgroup
+#   is a schema group of the form "<parent>/<sub>". Deeper nesting is
+#   not supported and is silently ignored.
+config_list_subgroups() {
+  local parent="$1"
+  local var group sub
+  local -A present=()
+
+  for var in "${!_CFG_TYPE[@]}"; do
+    [ "${_CFG_HIDDEN[$var]}" = "1" ] && continue
+    group="${_CFG_GROUP[$var]}"
+    case "$group" in
+      "${parent}/"*)
+        sub="${group#"${parent}/"}"
+        case "$sub" in
+          */*) continue ;;
+        esac
+        present["$sub"]=1
+        ;;
+    esac
+  done
+
+  for sub in "${!present[@]}"; do
+    printf '%s\n' "$sub"
+  done | LC_ALL=C sort
 }
 
 # config_meta <VAR> <field>

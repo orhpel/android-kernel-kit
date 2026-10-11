@@ -31,53 +31,49 @@ _CONFIG_SCHEMA_SH_LOADED=1
 config_declare KIT_COMMON_CFG_TOOLCHAIN enum \
   --group General --scope both --default "" \
   --options-from-dir "${KIT_DIR}/toolchains" \
-  --desc "Toolchain profile (empty = not configured)"
-
-config_declare KIT_COMMON_CFG_ADB_WAIT_INTERVAL int \
-  --group ADB --scope global --default 2 --min 1 \
-  --desc "Seconds between adb get-state polls"
-
-config_declare KIT_COMMON_OPT_NO_TMUX bool \
-  --group General --scope both --default 0 \
-  --desc "Disable tmux auto-launch for streamed builds"
+  --desc "Toolchain profile (global default, overridable per project)"
 
 config_declare KIT_COMMON_CFG_NERDFONT bool \
   --group General --scope global --default 0 \
   --desc "Use NerdFont glyphs for the pipeline progress line"
 
-# --- Paths ---------------------------------------------------
+config_declare KIT_COMMON_OPT_NO_TMUX bool \
+  --group General --scope both --default 0 \
+  --desc "Disable tmux auto-launch for streamed builds"
+
+config_declare KIT_COMMON_CFG_ADB_WAIT_INTERVAL int \
+  --group General --scope global --default 2 --min 1 \
+  --desc "Seconds between adb get-state polls"
 
 config_declare KIT_COMMON_CFG_LOG_DIR dir \
-  --group Paths --scope both --default logs \
+  --group General --scope both --default logs \
   --desc "Session log directory (relative to project root, or absolute)"
 
+config_declare KIT_LOG_CFG_ROTATE_MAX_SIZE int \
+  --group General --scope global --default 1048576 --min 0 \
+  --desc "Max session log size in bytes before rotation (0 = unlimited)"
+
+config_declare KIT_LOG_CFG_ROTATE_MAX_COUNT int \
+  --group General --scope global --default 20 --min 1 \
+  --desc "Max retained session logs"
+
+config_declare KIT_LOG_OPT_TIMESTAMP bool \
+  --group General --scope both --default 1 \
+  --desc "Append timestamp to pulled log filenames"
+
 config_declare KIT_BUILD_CFG_ARCHIVE_DIR dir \
-  --group Paths --scope both --default build_archive \
+  --group General --scope both --default build_archive \
   --desc "Root directory for archived builds"
 
 config_declare KIT_BUILD_CFG_DTB_TOOL file \
-  --group Paths --scope global \
+  --group General --scope global \
   --default "$HOME/Projects/dtbTool-lineage17.1/dtbtool" \
   --desc "dtbTool binary (LineageOS fork)"
 
 config_declare KIT_PACK_CFG_AIK_DIR dir \
-  --group Paths --scope global \
+  --group General --scope global \
   --default "$HOME/Projects/Android-Image-Kitchen" \
   --desc "Android Image Kitchen root"
-
-# --- Logging -------------------------------------------------
-
-config_declare KIT_LOG_CFG_ROTATE_MAX_SIZE int \
-  --group Log --scope global --default 1048576 --min 0 \
-  --desc "Max session log size in bytes before rotation (0 = unlimited)"
-
-config_declare KIT_LOG_CFG_ROTATE_MAX_COUNT int \
-  --group Log --scope global --default 20 --min 1 \
-  --desc "Max retained session logs"
-
-config_declare KIT_LOG_OPT_TIMESTAMP bool \
-  --group Log --scope both --default 1 \
-  --desc "Append timestamp to pulled log filenames"
 
 # --- Build ---------------------------------------------------
 
@@ -117,6 +113,14 @@ config_declare KIT_BUILD_CFG_VARIANT_CHECK bool \
 config_declare KIT_BUILD_CFG_VARIANT_TAG bool \
   --group Build --scope both --default 0 \
   --desc "Append active variant name to LOCALVERSION"
+
+# --- Build/tmux ----------------------------------------------
+
+config_declare KIT_STREAM_CFG_SPLIT_MIN_WIDTH int    --group Build/tmux --scope global --default 100 --min 40 --desc "Min terminal width for a horizontal split"
+config_declare KIT_STREAM_CFG_SPLIT_SIZE      string --group Build/tmux --scope global --default "40%" --desc "Pane size (percent or lines)"
+config_declare KIT_STREAM_CFG_USE_STDBUF      bool   --group Build/tmux --scope global --default 1     --desc "Line-buffer child via stdbuf when available"
+config_declare KIT_STREAM_CFG_ERROR_CONTEXT   int    --group Build/tmux --scope global --default 15 --min 0 --desc "Context lines around 'error:' on failure"
+config_declare KIT_STREAM_CFG_TMUX_SESSION    string --group Build/tmux --scope global --default ""    --desc "tmux session name (empty = kit-build-<pid>)"
 
 # --- Clean ---------------------------------------------------
 
@@ -172,7 +176,7 @@ config_declare KIT_CONFIG_IT_CFG_SHOW_SCOPE bool \
 config_declare KIT_MENU_CFG_SYMBOL_CHECKED   string --group Menu --scope global --default "✅"  --desc "Checked-state glyph"
 config_declare KIT_MENU_CFG_SYMBOL_UNCHECKED string --group Menu --scope global --default "⬛"  --desc "Unchecked-state glyph"
 config_declare KIT_MENU_CFG_SYMBOL_ACTION    string --group Menu --scope global --default "▶"  --desc "Action marker"
-config_declare KIT_MENU_CFG_SYMBOL_BACK      string --group Menu --scope global --default "↩"   --desc "Back"
+config_declare KIT_MENU_CFG_SYMBOL_BACK      string --group Menu --scope global --default "↩"   --desc "Back-action marker"
 config_declare KIT_MENU_CFG_SYMBOL_SUBMENU   string --group Menu --scope global --default "📁"  --desc "Submenu marker"
 config_declare KIT_MENU_CFG_COLOR_CURSOR     string --group Menu --scope global --default "212" --desc "gum cursor foreground colour"
 config_declare KIT_MENU_CFG_COLOR_SELECTED   string --group Menu --scope global --default ""    --desc "gum selected-line foreground colour"
@@ -200,13 +204,9 @@ config_declare KIT_COMMON_STATE_NERDFONT_ASKED bool \
 # shellcheck disable=SC2034  # read by config_list_groups in common.sh
 KIT_CONFIG_GROUP_ORDER=(
   General
-  Paths
-  Log
   Clean
   Build
   Pack
-  ADB
   Flash
-  Stream
   Menu
 )

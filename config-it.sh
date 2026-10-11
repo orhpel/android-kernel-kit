@@ -176,8 +176,11 @@ config_load
 
 if [ "$list_only" -eq 1 ]; then
   printf 'Target: %s (%s)\n\n' "$TARGET_KIND" "$target_file"
-  while IFS= read -r group; do
+
+  _list_group() {
+    local group="$1"
     printf '## %s\n' "$group"
+    local var value inherited mark
     while IFS= read -r var; do
       value="${!var:-}"
       inherited="$(config_inherited_value "$var" 2>/dev/null || true)"
@@ -186,6 +189,13 @@ if [ "$list_only" -eq 1 ]; then
       printf '%-42s = %s%s\n' "$var" "$value" "$mark"
     done < <(config_list_vars "$group")
     printf '\n'
+  }
+
+  while IFS= read -r group; do
+    _list_group "$group"
+    while IFS= read -r sub; do
+      _list_group "${group}/${sub}"
+    done < <(config_list_subgroups "$group")
   done < <(config_list_groups)
   exit 0
 fi
@@ -515,17 +525,6 @@ add_config_entry() {
   esac
 }
 
-# _var_in_target_scope <var>
-#   Return 0 if the variable is editable in the current TARGET_KIND.
-_var_in_target_scope() {
-  local var="$1"
-  local scope; scope="$(config_meta "$var" scope)"
-  case "$TARGET_KIND:$scope" in
-    global:global|global:both|project:project|project:both) return 0 ;;
-  esac
-  return 1
-}
-
 # _editable_groups
 #   Print each group that has at least one var editable in the current
 #   TARGET_KIND. Order follows config_list_groups.
@@ -543,18 +542,40 @@ _editable_groups() {
   done < <(config_list_groups)
 }
 
+# _menu_name_for_group <group>
+#   Deterministic menu name for a group path. Slashes become double
+#   underscores, which cannot appear in schema group names.
+_menu_name_for_group() {
+  local g="$1"
+  printf 'cfg_group_%s\n' "${g//\//__}"
+}
+
+# _var_in_target_scope <var>
+#   Return 0 if the variable is editable in the current TARGET_KIND.
+_var_in_target_scope() {
+  local var="$1"
+  local scope; scope="$(config_meta "$var" scope)"
+  case "$TARGET_KIND:$scope" in
+    global:global|global:both|project:project|project:both) return 0 ;;
+  esac
+  return 1
+}
+
 define_group_menu() {
-  local group="$1" name="$2"
+  local group="$1"
+  local name; name="$(_menu_name_for_group "$group")"
+
+  # Render "Build/tmux" as "Build — tmux" in the header.
+  local display_group="${group//\// — }"
   local header
   case "$TARGET_KIND" in
-    global)  header="⚙  Global — ${group}" ;;
-    project) header="⚙  Project (${TARGET_ROOT##*/}) — ${group}" ;;
+    global)  header="⚙  Global — ${display_group}" ;;
+    project) header="⚙  Project (${TARGET_ROOT##*/}) — ${display_group}" ;;
   esac
 
-	# Pre-compute the widest variable name among *editable* vars in this
+  # Pre-compute the widest variable name among *editable* vars in this
   # group, then emit one entry per editable var. Vars whose scope does
-  # not match the current TARGET_KIND are skipped entirely — the user
-  # only sees what they can actually change here.
+  # not match the current TARGET_KIND are skipped entirely.
   local max_var_len=0 var vlen
   while IFS= read -r var; do
     _var_in_target_scope "$var" || continue
@@ -563,12 +584,20 @@ define_group_menu() {
   done < <(config_list_vars "$group")
 
   menu_begin "$header"
+
   while IFS= read -r var; do
     _var_in_target_scope "$var" || continue
     add_config_entry "$var" "$max_var_len"
   done < <(config_list_vars "$group")
 
-	case "$group" in
+  # Nested groups appear as submenu entries, sorted alphabetically.
+  local sub
+  while IFS= read -r sub; do
+    menu_submenu "$sub" "$(_menu_name_for_group "${group}/${sub}")"
+  done < <(config_list_subgroups "$group")
+
+  # Group-specific actions.
+  case "$group" in
     Pack)
       menu_action "Install Android Image Kitchen…" "action_install_aik"
       ;;
@@ -598,11 +627,9 @@ define_root_menu() {
 
   menu_action "Quick setup" "action_quick_setup"
 
-  local idx=0 name group
+  local group
   for group in "${groups[@]}"; do
-    name="cfg_group_${idx}"
-    menu_submenu "$group" "$name"
-    idx=$((idx + 1))
+    menu_submenu "$group" "$(_menu_name_for_group "$group")"
   done
 
   menu_action "Show target file" "printf '%s\n' '${target_file}'"
@@ -613,21 +640,20 @@ define_root_menu() {
 
 # --- Reconciliation -------------------------------------
 
-# write_back_changes <group>
+# write_back_changes
 #   Persist values that changed via menu (menu.sh writes only to
-#   shell variables). Called after the main menu returns.
-#   The edit target (TARGET_KIND) determinates where the value goes,
-#   regardless of the variable's own scope.
+#   shell variables). Called once after the main menu returns.
+#   Iterates every visible declared var — group structure is
+#   irrelevant here, only scope matters.
 write_back_changes() {
-  local group="$1" var current persisted scope
-  while IFS= read -r var; do
+  local var current persisted scope
+  for var in "${!_CFG_TYPE[@]}"; do
+    [ "${_CFG_HIDDEN[$var]}" = "1" ] && continue
+
     current="${!var:-}"
     persisted="$(_cfg_read_value "$target_file" "$var")"
     scope="$(config_meta "$var" scope)"
 
-    # Skip variables that don't apply to this edit target at all.
-    # A scope=global var can't be set in a project file; a scope=project
-    # var can't be set in the global file.
     case "$TARGET_KIND:$scope" in
       global:global|global:both|project:project|project:both) ;;
       *) continue ;;
@@ -637,7 +663,7 @@ write_back_changes() {
       config_write "$var" "$current" "$target_file" >/dev/null \
         || warn "Failed to persist $var"
     fi
-  done < <(config_list_vars "$group")
+  done
 }
 
 # --- NerdFont onboarding --------------------------------
@@ -667,17 +693,17 @@ if [ "${#editable_groups[@]}" -eq 0 ]; then
   exit 0
 fi
 
-local_group_idx=0
+# Build the menu tree: top-level groups plus one level of submenus.
 for group in "${editable_groups[@]}"; do
-  define_group_menu "$group" "cfg_group_${local_group_idx}"
-  local_group_idx=$((local_group_idx + 1))
+  define_group_menu "$group"
+  while IFS= read -r sub; do
+    define_group_menu "${group}/${sub}"
+  done < <(config_list_subgroups "$group")
 done
 
 define_root_menu "${editable_groups[@]}"
 menu_run cfg_root || exit 1
 
-for group in "${editable_groups[@]}"; do
-  write_back_changes "$group"
-done
+write_back_changes
 
 exit 0
