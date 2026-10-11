@@ -183,14 +183,6 @@ config_declare KIT_MENU_CFG_COLOR_SELECTED   string --group Menu --scope global 
 config_declare KIT_MENU_CFG_COLOR_ITEM       string --group Menu --scope global --default ""    --desc "gum item foreground colour"
 config_declare KIT_MENU_CFG_COLOR_HEADER     string --group Menu --scope global --default ""    --desc "gum header foreground colour"
 
-# --- Stream --------------------------------------------------
-
-config_declare KIT_STREAM_CFG_SPLIT_MIN_WIDTH int    --group Stream --scope global --default 100 --min 40 --desc "Min terminal width for a horizontal split"
-config_declare KIT_STREAM_CFG_SPLIT_SIZE      string --group Stream --scope global --default "40%" --desc "Pane size (percent or lines)"
-config_declare KIT_STREAM_CFG_USE_STDBUF      bool   --group Stream --scope global --default 1     --desc "Line-buffer child via stdbuf when available"
-config_declare KIT_STREAM_CFG_ERROR_CONTEXT   int    --group Stream --scope global --default 15 --min 0 --desc "Context lines around 'error:' on failure"
-config_declare KIT_STREAM_CFG_TMUX_SESSION    string --group Stream --scope global --default ""    --desc "tmux session name (empty = kit-build-<pid>)"
-
 # --- State (hidden, managed automatically) -------------------
 
 config_declare KIT_BUILD_STATE_BUILDNO   int --group State --scope project --default 0 --hidden --desc "Monotonic build counter"
