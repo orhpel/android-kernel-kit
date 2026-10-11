@@ -101,24 +101,18 @@ declare -g _MENU_ARG_FLAGS=""
 : "${KIT_MENU_CFG_COLOR_HEADER:=}"
 
 # _display_width <string>
-#   Visual width of <string> in terminal cells. Bash's ${#s} counts
-#   codepoints, but terminals render emoji and many symbols double-
-#   width. Approximation: every non-ASCII codepoint counts as two.
-#   Correct for the kit's defaults (✅ ⬛ ▶ 📁 …) and wrong only for
-#   a handful of single-width Unicode chars that never appear in
-#   the alignment-sensitive columns.
+#   Visual width of <string> in terminal cells. Delegates to the
+#   system's wcwidth() via `wc -L`, so the result matches what the
+#   terminal actually renders — including locale-specific rules
+#   (e.g. 'ambiguous-width' symbols like ▶ are 1 cell in a Western
+#   locale, 2 in a CJK locale) and emoji width (always 2 on modern
+#   libc).
+#
+#   No hardcoded symbol list. Users can configure any glyph via
+#   config-it and the alignment stays correct.
 _display_width() {
-  local s="$1" width=0 i ch
-  local len="${#s}"
-  for ((i = 0; i < len; i++)); do
-    ch="${s:i:1}"
-    if [[ "$ch" == [!\ -~] ]]; then
-      width=$((width + 2))
-    else
-      width=$((width + 1))
-    fi
-  done
-  printf '%s' "$width"
+  local s="$1"
+  printf '%s' "$s" | wc -L
 }
 
 # --- Value access ---------------------------------------
@@ -434,7 +428,7 @@ _menu_render_label() {
 
     case "$type" in
       submenu)
-        out="${KIT_MENU_CFG_SYMBOL_SUBMENU} ${label}"
+        out="${KIT_MENU_CFG_SYMBOL_SUBMENU} ${label} >"
         ;;
       bool|enum|int|string|file|dir)
         local st st_padded st_w
