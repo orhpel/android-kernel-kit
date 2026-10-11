@@ -421,25 +421,31 @@ add_config_entry() {
   value="${!var:-}"
   inherited="$(config_inherited_value "$var" 2>/dev/null || true)"
 
-  # Left side (menu label): human-readable description. menu.sh
-  # pads it to the group's widest description and appends the value
-  # column with the same alignment across all types.
+  # Left side (menu label): human-readable description.
   local label_text="$desc"
 
-  # Right side (--desc, shown after the em-dash): variable name,
-  # padded to the group's widest name so the trailing markers align.
-  local padded_var="$var"
-  if [ "${#var}" -lt "$max_var_len" ]; then
-    printf -v padded_var '%s%*s' "$var" "$((max_var_len - ${#var}))" ""
+  # Right side (after the em-dash): built from up to four independently
+  # toggled parts, joined with two spaces. The whole right side is
+  # omitted when every part is off.
+  local -a parts=()
+
+  if [ "${KIT_CONFIG_IT_CFG_SHOW_VARNAME:-0}" = "1" ]; then
+    local padded_var="$var"
+    if [ "${#var}" -lt "$max_var_len" ]; then
+      printf -v padded_var '%s%*s' "$var" "$((max_var_len - ${#var}))" ""
+    fi
+    parts+=("$padded_var")
   fi
 
-  local markers=""
-  case "$scope" in
-    global)  markers="[scope: global]" ;;
-    project) markers="[scope: project]" ;;
-    both)    markers="[scope: both]" ;;
-  esac
-  [ "$value" != "$inherited" ] && markers="${markers}  [override]"
+  if [ "${KIT_CONFIG_IT_CFG_SHOW_SCOPE:-0}" = "1" ]; then
+    case "$scope" in
+      global)  parts+=("[scope: global]") ;;
+      project) parts+=("[scope: project]") ;;
+      both)    parts+=("[scope: both]") ;;
+    esac
+  fi
+
+  [ "$value" != "$inherited" ] && parts+=("[override]")
 
   # Type-aware "mandatory" check: for paths, verify existence; for
   # enums sourced from a directory, verify a matching file is present;
@@ -458,11 +464,17 @@ add_config_entry() {
         ;;
       string) [ -z "$value" ] && missing=1 ;;
     esac
-    [ "$missing" = "1" ] && markers="⚠️  required  ${markers}"
+    [ "$missing" = "1" ] && parts=("⚠️  required" "${parts[@]}")
   fi
 
-  local desc_text="${padded_var}"
-  [ -n "$markers" ] && desc_text="${desc_text}  ${markers}"
+  local desc_text="" first=1 part
+  for part in "${parts[@]}"; do
+    if [ "$first" -eq 1 ]; then
+      desc_text="$part"; first=0
+    else
+      desc_text="${desc_text}  ${part}"
+    fi
+  done
 
   local args=(--desc "$desc_text")
 

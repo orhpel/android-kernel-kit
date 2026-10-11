@@ -163,6 +163,12 @@ config_declare KIT_FLASH_CFG_REBOOT_DELAY int \
 
 # --- Menu ----------------------------------------------------
 
+config_declare KIT_CONFIG_IT_CFG_SHOW_VARNAME bool \
+  --group Menu --scope global --default 0 \
+  --desc "Show variable names in menus"
+config_declare KIT_CONFIG_IT_CFG_SHOW_SCOPE bool \
+  --group Menu --scope global --default 0 \
+  --desc "Show scope markers in menus"
 config_declare KIT_MENU_CFG_SYMBOL_CHECKED   string --group Menu --scope global --default "✅"  --desc "Checked-state glyph"
 config_declare KIT_MENU_CFG_SYMBOL_UNCHECKED string --group Menu --scope global --default "⬛"  --desc "Unchecked-state glyph"
 config_declare KIT_MENU_CFG_SYMBOL_ACTION    string --group Menu --scope global --default "▶"  --desc "Action marker"
