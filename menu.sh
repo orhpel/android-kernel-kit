@@ -88,6 +88,7 @@ declare -g _MENU_ARG_FLAGS=""
 # Symbols used in rendered labels. Override before sourcing if needed.
 #: "${KIT_MENU_CFG_SYMBOL_ACTION:=$'\uf4b5'}" Nerdfont version
 : "${KIT_MENU_CFG_SYMBOL_ACTION:=▶}"
+: "${KIT_MENU_CFG_SYMBOL_BACK:=↩}"
 : "${KIT_MENU_CFG_SYMBOL_CHECKED:=✅}"
 : "${KIT_MENU_CFG_SYMBOL_UNCHECKED:=⬛}"
 #: "${KIT_MENU_CFG_SYMBOL_SUBMENU:=$'\uf114'}" Nerdfont version
@@ -596,6 +597,10 @@ _menu_run_action() {
 
 menu_run() {
   local name="${1:-}"
+  # Recursion depth, passed by the parent menu's submenu dispatcher.
+  # Depth 0 = top-level menu (no Back button). Depth ≥1 = opened from
+  # a parent menu (Back button appended).
+  local depth="${2:-0}"
   if [ -z "$name" ]; then
     echo "❌ menu_run: menu name required." >&2
     return 1
@@ -614,18 +619,21 @@ menu_run() {
     return 1
   fi
 
+  local back_label=""
+  [ "$depth" -gt 0 ] && back_label="${KIT_MENU_CFG_SYMBOL_BACK} Back"
+
 	local -a labels=()
   local i choice idx key type prev_idx=0
-  local -a choose_args
+	local -a choose_args
   local max_w max_status_w
+  local _st _sw _lw
 
   while true; do
     # Compute the label padding width and the status padding width
     # separately, so value entries line up on both columns regardless
     # of their type.
-		max_w=0
+    max_w=0
     max_status_w=0
-    local _st _sw _lw
     for ((i = 0; i < count; i++)); do
       key="${name}:${i}"
       [ "${_MENU_TYPE[$key]}" = "action" ] && continue
@@ -642,6 +650,10 @@ menu_run() {
       labels+=("$(_menu_render_label "${name}:${i}" "$max_w" "$max_status_w")")
     done
 
+    # Append the Back entry when we were opened from a parent menu.
+    # It is a pseudo-entry: no registry slot, index == count.
+    [ -n "$back_label" ] && labels+=("$back_label")
+
 		choose_args=(--header "$title")
     [ -n "$KIT_MENU_CFG_COLOR_HEADER" ] && choose_args+=(--header.foreground "$KIT_MENU_CFG_COLOR_HEADER")
     [ -n "$KIT_MENU_CFG_COLOR_CURSOR" ] && choose_args+=(--cursor.foreground "$KIT_MENU_CFG_COLOR_CURSOR")
@@ -656,12 +668,20 @@ menu_run() {
       return 1  # Esc / Ctrl-C
     fi
 
-    idx=""
+		idx=""
     for ((i = 0; i < count; i++)); do
       if [ "$choice" = "${labels[$i]}" ]; then
         idx="$i"; break
       fi
     done
+
+    # Back pseudo-entry: same exit path as Esc — return 1, let the
+    # parent menu (which called us via submenu dispatch with || true)
+    # continue its loop.
+    if [ -z "$idx" ] && [ -n "$back_label" ] && [ "$choice" = "$back_label" ]; then
+      return 1
+    fi
+
     if [ -z "$idx" ]; then
       echo "❌ menu_run: could not resolve selection." >&2
       return 1
@@ -672,7 +692,7 @@ menu_run() {
 
     case "$type" in
       submenu)
-        menu_run "${_MENU_PAYLOAD[$key]}" || true
+        menu_run "${_MENU_PAYLOAD[$key]}" "$((depth + 1))" || true
         prev_idx=0
         ;;
       action)

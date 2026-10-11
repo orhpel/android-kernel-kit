@@ -163,9 +163,10 @@ config_declare KIT_FLASH_CFG_REBOOT_DELAY int \
 
 # --- Menu ----------------------------------------------------
 
-config_declare KIT_MENU_CFG_SYMBOL_CHECKED   string --group Menu --scope global --default "✅" --desc "Checked-state glyph"
-config_declare KIT_MENU_CFG_SYMBOL_UNCHECKED string --group Menu --scope global --default "⬛" --desc "Unchecked-state glyph"
+config_declare KIT_MENU_CFG_SYMBOL_CHECKED   string --group Menu --scope global --default "✅"  --desc "Checked-state glyph"
+config_declare KIT_MENU_CFG_SYMBOL_UNCHECKED string --group Menu --scope global --default "⬛"  --desc "Unchecked-state glyph"
 config_declare KIT_MENU_CFG_SYMBOL_ACTION    string --group Menu --scope global --default "▶"  --desc "Action marker"
+config_declare KIT_MENU_CFG_SYMBOL_BACK      string --group Menu --scope global --default "↩"   --desc "Back"
 config_declare KIT_MENU_CFG_SYMBOL_SUBMENU   string --group Menu --scope global --default "📁"  --desc "Submenu marker"
 config_declare KIT_MENU_CFG_COLOR_CURSOR     string --group Menu --scope global --default "212" --desc "gum cursor foreground colour"
 config_declare KIT_MENU_CFG_COLOR_SELECTED   string --group Menu --scope global --default ""    --desc "gum selected-line foreground colour"
