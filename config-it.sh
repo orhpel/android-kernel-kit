@@ -423,6 +423,7 @@ add_config_entry() {
   local var="$1"
   local max_var_len="${2:-0}"
   local type desc placeholder value scope inherited mandatory
+  local pattern hint default_val
   type="$(config_meta "$var" type)"
   desc="$(config_meta "$var" desc)"
   placeholder="$(config_meta "$var" placeholder)"
@@ -430,6 +431,20 @@ add_config_entry() {
   mandatory="$(config_meta "$var" mandatory 2>/dev/null || echo 0)"
   value="${!var:-}"
   inherited="$(config_inherited_value "$var" 2>/dev/null || true)"
+  pattern="$(config_meta "$var" pattern)"
+  hint="$(config_meta "$var" hint)"
+  default_val="$(config_meta "$var" default)"
+
+  # Append "Defaults to: <value>" to the hint unless the default is
+  # empty or "0" (both mean "nothing meaningful to show"). Kept out of
+  # the menu list; the enriched hint is only passed to the editor.
+  if [ -n "$default_val" ] && [ "$default_val" != "0" ]; then
+    if [ -n "$hint" ]; then
+      hint="${hint}"$'\n'"Defaults to: ${default_val}"
+    else
+      hint="Defaults to: ${default_val}"
+    fi
+  fi
 
   # Left side (menu label): human-readable description.
   local label_text="$desc"
@@ -506,22 +521,34 @@ add_config_entry() {
           opts_arr+=("$(basename -- "$opt" .sh)")
         done
       fi
+      [ -n "$hint" ] && args+=(--hint "$hint")
       menu_enum "$label_text" "$var" "${opts_arr[@]}" "${args[@]}"
       ;;
-    int)
+		int)
       local min max
       min="$(config_meta "$var" min)"
       max="$(config_meta "$var" max)"
-      [ -n "$min" ] && args+=(--min "$min")
-      [ -n "$max" ] && args+=(--max "$max")
+      [ -n "$min" ]  && args+=(--min "$min")
+      [ -n "$max" ]  && args+=(--max "$max")
+      [ -n "$hint" ] && args+=(--hint "$hint")
       menu_int "$label_text" "$var" "${args[@]}"
       ;;
     string)
       [ -n "$placeholder" ] && args+=(--placeholder "$placeholder")
+      [ -n "$pattern" ]     && args+=(--pattern "$pattern")
+      [ -n "$hint" ]        && args+=(--hint "$hint")
       menu_string "$label_text" "$var" "${args[@]}"
       ;;
-    file)  args+=(--check); menu_file "$label_text" "$var" "${args[@]}" ;;
-    dir)   args+=(--check); menu_dir  "$label_text" "$var" "${args[@]}" ;;
+    file)
+      args+=(--check)
+      [ -n "$hint" ] && args+=(--hint "$hint")
+      menu_file "$label_text" "$var" "${args[@]}"
+      ;;
+    dir)
+      args+=(--check)
+      [ -n "$hint" ] && args+=(--hint "$hint")
+      menu_dir "$label_text" "$var" "${args[@]}"
+      ;;
   esac
 }
 

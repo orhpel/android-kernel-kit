@@ -766,6 +766,8 @@ declare -gA _CFG_MIN
 declare -gA _CFG_MAX
 declare -gA _CFG_CHECK
 declare -gA _CFG_PLACEHOLDER
+declare -gA _CFG_PATTERN
+declare -gA _CFG_HINT
 
 declare -g _CFG_LOADED=0
 
@@ -782,6 +784,8 @@ declare -g _CFG_LOADED=0
 #     --placeholder TEXT               (string)
 #     --check                          (file/dir: validate existence)
 #     --hidden                         (excluded from config-it menus)
+#     --pattern REGEX                  (string: POSIX-extended regex)
+#     --hint TEXT                      (shown in the editor, not in the menu)
 config_declare() {
   local var="${1:-}" type="${2:-}"; shift 2 || true
   if [ -z "$var" ] || [ -z "$type" ]; then
@@ -795,8 +799,9 @@ config_declare() {
     *) echo "❌ config_declare $var: unknown type '$type'." >&2; return 1 ;;
   esac
 
-  local group="" scope="" default="" desc="" hidden=0
+	local group="" scope="" default="" desc="" hidden=0 mandatory=0
   local options="" options_dir="" min="" max="" check=0 placeholder=""
+  local pattern="" hint=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -811,6 +816,8 @@ config_declare() {
       --placeholder)     placeholder="$2"; shift 2 ;;
       --hidden)          hidden=1; shift ;;
       --check)           check=1; shift ;;
+      --pattern)         pattern="$2"; shift 2 ;;
+      --hint)            hint="$2"; shift 2 ;;
       *) echo "❌ config_declare $var: unknown flag '$1'." >&2; return 1 ;;
     esac
   done
@@ -832,6 +839,8 @@ config_declare() {
   _CFG_MAX["$var"]="$max"
   _CFG_CHECK["$var"]="$check"
   _CFG_PLACEHOLDER["$var"]="$placeholder"
+  _CFG_PATTERN["$var"]="$pattern"
+  _CFG_HINT["$var"]="$hint"
 }
 
 # ========================================================
@@ -1243,7 +1252,7 @@ config_list_subgroups() {
 
 # config_meta <VAR> <field>
 #   Prints one metadata field: type|group|scope|default|desc|hidden|
-#   options|options_dir|min|max|check|placeholder
+#   options|options_dir|min|max|check|placeholder|pattern|hint
 config_meta() {
   local var="$1" field="$2"
   case "$field" in
@@ -1259,6 +1268,8 @@ config_meta() {
     max)         printf '%s\n' "${_CFG_MAX[$var]:-}" ;;
     check)       printf '%s\n' "${_CFG_CHECK[$var]:-0}" ;;
     placeholder) printf '%s\n' "${_CFG_PLACEHOLDER[$var]:-}" ;;
+    pattern)     printf '%s\n' "${_CFG_PATTERN[$var]:-}" ;;
+    hint)        printf '%s\n' "${_CFG_HINT[$var]:-}" ;;
     value)       printf '%s\n' "${!var:-}" ;;
     *) echo "❌ config_meta: unknown field '$field'." >&2; return 1 ;;
   esac

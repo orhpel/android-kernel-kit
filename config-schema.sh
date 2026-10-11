@@ -31,7 +31,8 @@ _CONFIG_SCHEMA_SH_LOADED=1
 config_declare KIT_COMMON_CFG_TOOLCHAIN enum \
   --group General --scope both --default "" \
   --options-from-dir "${KIT_DIR}/toolchains" \
-  --desc "Toolchain profile (global default, overridable per project)"
+  --desc "Toolchain profile" \
+  --hint "Set global default, overridable per project"
 
 config_declare KIT_COMMON_CFG_NERDFONT bool \
   --group General --scope global --default 0 \
@@ -47,11 +48,13 @@ config_declare KIT_COMMON_CFG_ADB_WAIT_INTERVAL int \
 
 config_declare KIT_COMMON_CFG_LOG_DIR dir \
   --group General --scope both --default logs \
-  --desc "Session log directory (relative to project root, or absolute)"
+  --desc "Session log directory" \
+  --hint "Can be relative to project root, or absolute"
 
 config_declare KIT_LOG_CFG_ROTATE_MAX_SIZE int \
   --group General --scope global --default 1048576 --min 0 \
-  --desc "Max session log size in bytes before rotation (0 = unlimited)"
+  --desc "Max session log size in bytes before rotation" \
+  --hint "Enter 0 to disable limits"
 
 config_declare KIT_LOG_CFG_ROTATE_MAX_COUNT int \
   --group General --scope global --default 20 --min 1 \
@@ -87,7 +90,8 @@ config_declare KIT_BUILD_CFG_AUTO_DTB_APPEND bool \
 
 config_declare KIT_BUILD_CFG_DTB_DIR dir \
   --group Build --scope project --default "" \
-  --desc "DTS source directory (empty = arch/<ARCH>/boot/dts)"
+  --desc "DTS source directory" \
+  --hint "(empty = arch/<ARCH>/boot/dts)"
 
 config_declare KIT_BUILD_CFG_DEFAULT_TARGETS string \
   --group Build --scope project --default "zImage dtbs" \
@@ -99,7 +103,8 @@ config_declare KIT_BUILD_OPT_LOCALVERSION string \
 
 config_declare KIT_BUILD_CFG_VARIANT string \
   --group Build --scope project --default "" \
-  --desc "Active build variant (empty = no variant)"
+  --desc "Active build variant" \
+  --hint "Empty means no variant"
 
 config_declare KIT_BUILD_CFG_VARIANT_NORMALIZE enum \
   --group Build --scope project --default off \
@@ -117,10 +122,10 @@ config_declare KIT_BUILD_CFG_VARIANT_TAG bool \
 # --- Build/tmux ----------------------------------------------
 
 config_declare KIT_STREAM_CFG_SPLIT_MIN_WIDTH int    --group Build/tmux --scope global --default 100 --min 40 --desc "Min terminal width for a horizontal split"
-config_declare KIT_STREAM_CFG_SPLIT_SIZE      string --group Build/tmux --scope global --default "40%" --desc "Pane size (percent or lines)"
+config_declare KIT_STREAM_CFG_SPLIT_SIZE      string --group Build/tmux --scope global --default "40%" --desc "Pane size" --hint "Accepted: percent or lines"
 config_declare KIT_STREAM_CFG_USE_STDBUF      bool   --group Build/tmux --scope global --default 1     --desc "Line-buffer child via stdbuf when available"
 config_declare KIT_STREAM_CFG_ERROR_CONTEXT   int    --group Build/tmux --scope global --default 15 --min 0 --desc "Context lines around 'error:' on failure"
-config_declare KIT_STREAM_CFG_TMUX_SESSION    string --group Build/tmux --scope global --default ""    --desc "tmux session name (empty = kit-build-<pid>)"
+config_declare KIT_STREAM_CFG_TMUX_SESSION    string --group Build/tmux --scope global --default ""    --desc "tmux session name" --hint "No value will default to kit-build-<pid>"
 
 # --- Clean ---------------------------------------------------
 
@@ -178,10 +183,42 @@ config_declare KIT_MENU_CFG_SYMBOL_UNCHECKED string --group Menu --scope global 
 config_declare KIT_MENU_CFG_SYMBOL_ACTION    string --group Menu --scope global --default "▶"  --desc "Action marker"
 config_declare KIT_MENU_CFG_SYMBOL_BACK      string --group Menu --scope global --default "↩"   --desc "Back-action marker"
 config_declare KIT_MENU_CFG_SYMBOL_SUBMENU   string --group Menu --scope global --default "📁"  --desc "Submenu marker"
-config_declare KIT_MENU_CFG_COLOR_CURSOR     string --group Menu --scope global --default "212" --desc "gum cursor foreground colour"
-config_declare KIT_MENU_CFG_COLOR_SELECTED   string --group Menu --scope global --default ""    --desc "gum selected-line foreground colour"
-config_declare KIT_MENU_CFG_COLOR_ITEM       string --group Menu --scope global --default ""    --desc "gum item foreground colour"
-config_declare KIT_MENU_CFG_COLOR_HEADER     string --group Menu --scope global --default ""    --desc "gum header foreground colour"
+
+config_declare KIT_MENU_CFG_COLOR_CURSOR string \
+  --group Menu --scope global --default "212" \
+  --pattern '^([0-9]{1,3}|#[0-9a-fA-F]{6}|[a-zA-Z][a-zA-Z-]*)?$' \
+  --hint "Accepted: 256-index (0-255), #RRGGBB, or a colour name like 'red'.
+Empty leaves gum's default." \
+  --desc "gum cursor foreground colour"
+
+config_declare KIT_MENU_CFG_COLOR_SELECTED string \
+  --group Menu --scope global --default "" \
+  --pattern '^([0-9]{1,3}|#[0-9a-fA-F]{6}|[a-zA-Z][a-zA-Z-]*)?$' \
+  --hint "Accepted: 256-index (0-255), #RRGGBB, or a colour name like 'red'.
+Empty leaves gum's default." \
+  --desc "gum selected-line foreground colour"
+
+config_declare KIT_MENU_CFG_COLOR_ITEM string \
+  --group Menu --scope global --default "" \
+  --pattern '^([0-9]{1,3}|#[0-9a-fA-F]{6}|[a-zA-Z][a-zA-Z-]*)?$' \
+  --hint "Accepted: 256-index (0-255), #RRGGBB, or a colour name like 'red'.
+Empty leaves gum's default." \
+  --desc "gum item foreground colour"
+
+config_declare KIT_MENU_CFG_COLOR_HEADER string \
+  --group Menu --scope global --default "" \
+  --pattern '^([0-9]{1,3}|#[0-9a-fA-F]{6}|[a-zA-Z][a-zA-Z-]*)?$' \
+  --hint "Accepted: 256-index (0-255), #RRGGBB, or a colour name like 'red'.
+Empty leaves gum's default." \
+  --desc "gum header foreground colour"
+
+config_declare KIT_MENU_CFG_EDITOR_BOX enum \
+  --group Menu --scope global --default "unicode" \
+  --options "off unicode rounded" \
+  --hint "off       no box around the editor header
+unicode   ┌─ ─ │ box-drawing characters
+rounded   ╭─ ─ │ variant with rounded corner" \
+  --desc "Editor header decoration"
 
 # --- State (hidden, managed automatically) -------------------
 

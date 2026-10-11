@@ -148,12 +148,14 @@ _menu_parse_flags() {
 
   while [ $# -gt 0 ]; do
     local key="" val=""
-    case "$1" in
+		case "$1" in
       --desc)        key="desc";        val="$2"; shift 2 ;;
       --confirm)     key="confirm";     val="$2"; shift 2 ;;
       --min)         key="min";         val="$2"; shift 2 ;;
       --max)         key="max";         val="$2"; shift 2 ;;
       --placeholder) key="placeholder"; val="$2"; shift 2 ;;
+      --pattern)     key="pattern";     val="$2"; shift 2 ;;
+      --hint)        key="hint";        val="$2"; shift 2 ;;
       --close)       key="close";       shift ;;
       --check)       key="check";       shift ;;
       *)
@@ -453,13 +455,58 @@ _menu_render_label() {
 
 # --- Value editors --------------------------------------
 
+# _menu_editor_header <label> [<hint>]
+#   Compose the header string for gum input editors. When the box
+#   style is enabled, wraps the label and hint in box-drawing chars
+#   and — if a NerdFont-capable terminal is configured — prepends a
+#   pencil icon to the label.
+_menu_editor_header() {
+  local label="$1" hint="${2:-}"
+  local style="${KIT_MENU_CFG_EDITOR_BOX:-unicode}"
+  local icon=""
+
+  if [ "$style" != "off" ] && [ -n "$style" ] \
+     && [ "${KIT_COMMON_CFG_NERDFONT:-0}" = "1" ]; then
+    icon=$'\uf040 '
+  fi
+
+  if [ "$style" = "off" ] || [ -z "$style" ]; then
+    if [ -n "$hint" ]; then
+      printf '%s\n%s' "$label" "$hint"
+    else
+      printf '%s' "$label"
+    fi
+    return 0
+  fi
+
+  case "$style" in
+    rounded) printf '╭─%s%s\n' "$icon" "$label" ;;
+    *)       printf '┌─%s%s\n' "$icon" "$label" ;;
+  esac
+
+  if [ -n "$hint" ]; then
+    local line
+    while IFS= read -r line; do
+      printf '│  %s\n' "$line"
+    done <<<"$hint"
+  fi
+
+  printf '│'
+}
+
 _menu_edit_enum() {
-  local key="$1" var="$2" label="$3" payload="$4"
+  local key="$1" var="$2" label="$3" payload="$4" flags="${5:-}"
   local -a opts=()
   mapfile -t opts <<<"$payload"
 
+  local hint=""
+  hint=$(_menu_flag_val "$flags" hint || true)
+
+  local header
+  header="$(_menu_editor_header "$label" "$hint")"
+
   local cur; cur="$(_menu_get_var "$var")"
-  local -a args=(--header "$label")
+  local -a args=(--header "$header")
   local o
   for o in "${opts[@]}"; do
     if [ "$o" = "$cur" ]; then
@@ -477,10 +524,12 @@ _menu_edit_enum() {
 
 _menu_edit_int() {
   local key="$1" var="$2" label="$3" flags="$4"
-  local min max
+  local min max hint
   min=$(_menu_flag_val "$flags" min || true)
   max=$(_menu_flag_val "$flags" max || true)
+  hint=$(_menu_flag_val "$flags" hint || true)
 
+  local header; header="$(_menu_editor_header "$label" "$hint")"
   local cur; cur="$(_menu_get_var "$var")"
   local placeholder="integer"
   if [ -n "$min" ] && [ -n "$max" ]; then
@@ -492,7 +541,7 @@ _menu_edit_int() {
   fi
 
   local new
-  if new=$(gum input --header "$label" --value "$cur" --placeholder "$placeholder"); then
+  if new=$(gum input --header "$header" --value "$cur" --placeholder "$placeholder"); then
     if ! [[ "$new" =~ ^-?[0-9]+$ ]]; then
       echo "❌ '$new' is not an integer." >&2
       return 0
@@ -512,26 +561,40 @@ _menu_edit_int() {
 
 _menu_edit_string() {
   local key="$1" var="$2" label="$3" flags="$4"
-  local placeholder=""
+  local placeholder="" hint="" pattern=""
   placeholder=$(_menu_flag_val "$flags" placeholder || true)
+  hint=$(_menu_flag_val "$flags" hint || true)
+  pattern=$(_menu_flag_val "$flags" pattern || true)
 
+	local header; header="$(_menu_editor_header "$label" "$hint")"
   local cur; cur="$(_menu_get_var "$var")"
   local new
-  if new=$(gum input --header "$label" --value "$cur" --placeholder "$placeholder"); then
+  while true; do
+    if ! new=$(gum input --header "$header" --value "$cur" --placeholder "$placeholder"); then
+      return 0
+    fi
+    if [ -n "$pattern" ] && ! [[ "$new" =~ $pattern ]]; then
+      echo "❌ Input does not match pattern: $pattern" >&2
+      # Keep the bad input so the user can fix it in place.
+      cur="$new"
+      continue
+    fi
     _menu_set_var "$var" "$new"
-  fi
-  return 0
+    return 0
+  done
 }
 
 _menu_edit_path() {
   local key="$1" var="$2" label="$3" flags="$4" kind="$5"
 
-  local cur; cur="$(_menu_get_var "$var")"
+  local hint
+  hint=$(_menu_flag_val "$flags" hint || true)
+  local header; header="$(_menu_editor_header "$label" "$hint")"
   local placeholder="/path/to/..."
   [ "$kind" = "dir" ] && placeholder="/path/to/directory"
 
   local new
-  if ! new=$(gum input --header "$label" --value "$cur" --placeholder "$placeholder"); then
+  if ! new=$(gum input --header "$header" --value "$cur" --placeholder "$placeholder"); then
     return 0
   fi
 
@@ -559,7 +622,7 @@ _menu_edit_value() {
   local flags="${_MENU_FLAGS[$key]:-}"
 
   case "$type" in
-    enum)   _menu_edit_enum   "$key" "$var" "$label" "$payload" ;;
+    enum)   _menu_edit_enum   "$key" "$var" "$label" "$payload" "$flags" ;;
     int)    _menu_edit_int    "$key" "$var" "$label" "$flags" ;;
     string) _menu_edit_string "$key" "$var" "$label" "$flags" ;;
     file)   _menu_edit_path   "$key" "$var" "$label" "$flags" "file" ;;
